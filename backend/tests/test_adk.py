@@ -19,5 +19,6 @@ def test_workflow_creation_and_fixture_path():
     state = orchestrator.create_initial_state("INC-2026-0827")
     runner = ADKRunner()
     out = runner.run_workflow(orchestrator, state)
-    # the placeholder run should add one audit event
-    assert len(out.audit_events) == 1
+    # the placeholder run should add at least the init audit event
+    assert len(out.audit_events) >= 1
+    assert out.audit_events[0].event_id == "AUD-ADK-INIT"

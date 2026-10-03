@@ -4,10 +4,12 @@ version = "0.1.0"
 description = "Phase 1 backend slice for Factory WHY - FastAPI + deterministic simulator"
 requires-python = ">=3.12,<4.0"
 
-[project.dependencies]
-fastapi = "^0.99.0"
-pydantic = "^2.3"
-uvicorn = {extras = ["standard"], version = "^0.23.0"}
+dependencies = [
+    "fastapi>=0.99.0",
+    "pydantic>=2.3",
+    "uvicorn[standard]>=0.23.0",
+    "google-adk>=1.22.0",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "httpx>=0.24"]
@@ -15,3 +17,6 @@ dev = ["pytest>=7.0", "httpx>=0.24"]
 [build-system]
 requires = ["hatchling>=1.20"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]

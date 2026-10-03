@@ -1,34 +1,10 @@
 from __future__ import annotations
 from typing import Any, Dict, List
-try:
-    from google.adk.agents.llm_agent import LlmAgent
-    from google.adk.tools.function_tool import FunctionTool
-    from google.adk.runners import Runner
-    from google.adk.sessions import InMemorySessionService
-except Exception:
-    # Provide lightweight local shims so tests run without installing ADK.
-    class FunctionTool:
-        def __init__(self, name: str, description: str = "", execute=None, parameters=None):
-            self.name = name
-            self.description = description
-            self.execute = execute
 
-    class LlmAgent:
-        def __init__(self, model: str = "local", name: str | None = None, instruction: str | None = None, tools: list | None = None, **kwargs):
-            self.model = model
-            self.name = name
-            self.instruction = instruction
-            self.tools = tools or []
-
-    class InMemorySessionService:
-        def __init__(self, *args, **kwargs):
-            pass
-
-    class Runner:
-        def __init__(self, agent: LlmAgent, app_name: str, session_service: InMemorySessionService, *args, **kwargs):
-            self.agent = agent
-            self.app_name = app_name
-            self.session_service = session_service
+from google.adk.agents.llm_agent import LlmAgent
+from google.adk.tools.function_tool import FunctionTool
+from google.adk.runners import Runner
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
 
 from ..tools.tool_impl import (
     AllowlistedTools,
@@ -48,14 +24,16 @@ class EvidenceAgent:
     def __init__(self, tools: AllowlistedTools, model: str = "local-fake") -> None:
         self.tools = tools
         # Wrap the thin tool functions as FunctionTool instances the ADK agent can call.
-        # FunctionTool expects an execute(fn) callable signature.
+        # Use ADK FunctionTool(func=callable) so the tool declaration and argument
+        # validation are generated automatically by ADK. We pass bound methods from
+        # AllowlistedTools so FunctionTool can inspect the signature.
         self.func_tools = [
-            FunctionTool(name="get_asset_context", description="Get asset context", execute=self._wrap(self.tools.get_asset_context)),
-            FunctionTool(name="get_telemetry_window", description="Get telemetry window", execute=self._wrap(self.tools.get_telemetry_window)),
-            FunctionTool(name="get_maintenance_history", description="Get maintenance history", execute=self._wrap(self.tools.get_maintenance_history)),
-            FunctionTool(name="search_manual", description="Search maintenance manual", execute=self._wrap(self.tools.search_manual)),
-            FunctionTool(name="get_prior_incidents", description="Get prior incidents", execute=self._wrap(self.tools.get_prior_incidents)),
-            FunctionTool(name="get_inspection_image", description="Get inspection image", execute=self._wrap(self.tools.get_inspection_image)),
+            FunctionTool(func=self.tools.get_asset_context),
+            FunctionTool(func=self.tools.get_telemetry_window),
+            FunctionTool(func=self.tools.get_maintenance_history),
+            FunctionTool(func=self.tools.search_manual),
+            FunctionTool(func=self.tools.get_prior_incidents),
+            FunctionTool(func=self.tools.get_inspection_image),
         ]
 
         # Create a minimal LlmAgent; instruction constrains it to only call the provided tools
@@ -77,12 +55,7 @@ class EvidenceAgent:
         self.session_service = InMemorySessionService()
         self.runner = Runner(agent=self.agent, app_name="factory-why", session_service=self.session_service)
 
-    def _wrap(self, fn):
-        # Adapter to match FunctionTool.execute signature
-        def _exec(ctx, args: Dict[str, Any]):
-            return fn(args)
-
-        return _exec
+    # ADK FunctionTool wraps the provided callable. No manual wrapper required.
 
     def run(self, state: InvestigationState) -> InvestigationState:
         # For Phase 3B we do not actually call the LLM in tests; instead we deterministically
@@ -170,6 +143,11 @@ class EvidenceAgent:
             # Normalize telemetry points into EvidenceRef entries
             for p in telem.points:
                 # normalize telemetry into EvidenceRef while preserving observed status
+                # Use provenance returned by telemetry points when available;
+                # do not fabricate provenance URIs in production code. Tests
+                # seed telemetry rows without provenance so we fall back to
+                # an empty string which is acceptable to EvidenceRef.
+                prov = getattr(p, "provenance", None) or ""
                 ev = EvidenceRef(
                     evidence_id=f"TELEM-{asset_id or 'unknown'}-{p.timestamp}",
                     source="Telemetry",
@@ -177,11 +155,13 @@ class EvidenceAgent:
                     asset=asset_id or (state.asset_context.asset_id if state.asset_context else ""),
                     component="telemetry_aggregate",
                     observation=str({"vibration": p.vibration, "temperature": p.temperature, "motor_current": p.motor_current, "rpm": p.rpm, "pressure": p.pressure}),
-                    provenance="telemetry://in-memory",
+                    provenance=prov,
                     status="Observed",
                     confidence="High",
                 )
-                state.add_evidence(ev)
+                # Avoid duplicate evidence ids
+                if not any(e.evidence_id == ev.evidence_id for e in state.evidence):
+                    state.add_evidence(ev)
             state.record_audit(
                 AuditEvent(
                     event_id="AUD-EVIDENCE-TELEMETRY",
@@ -205,6 +185,280 @@ class EvidenceAgent:
                     tool_call="get_telemetry_window",
                     summary="Telemetry unavailable",
                     request_payload={"asset_id": state.asset_context.asset_id if state.asset_context else None},
+                    response_payload={"error": str(ex)},
+                    status="MISSING",
+                )
+            )
+
+        # Maintenance history
+        try:
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-MAINT-START",
+                    step_number=3,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="get_maintenance_history",
+                    summary="Maintenance history fetch start",
+                    request_payload={"asset_id": asset_id},
+                    response_payload={},
+                    status="STARTED",
+                )
+            )
+            maint = self.tools.get_maintenance_history({"asset_id": asset_id or ""})
+            added = 0
+            for w in maint.work_orders:
+                # try to enrich with asset/component from evidence repo if present
+                candidate = None
+                try:
+                    candidate = self.tools.evidence_repo.get_evidence(w.incident_id, w.evidence_id)
+                except Exception:
+                    candidate = None
+                asset_field = (candidate.get("asset") if candidate else None) or (state.asset_context.asset_id if state.asset_context else "")
+                component_field = (candidate.get("component") if candidate else None) or ""
+                observation = w.document_snippet or w.observation or w.details or ""
+                ev = EvidenceRef(
+                    evidence_id=w.evidence_id,
+                    source="Maintenance",
+                    timestamp=w.timestamp,
+                    asset=asset_field,
+                    component=component_field,
+                    observation=observation,
+                    provenance=w.provenance or (candidate.get("provenance") if candidate else ""),
+                    status="Observed",
+                    confidence=w.confidence or (candidate.get("confidence") if candidate else ""),
+                )
+                if not any(e.evidence_id == ev.evidence_id for e in state.evidence):
+                    state.add_evidence(ev)
+                    added += 1
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-MAINT-SUCCESS",
+                    step_number=4,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="get_maintenance_history",
+                    summary="Maintenance history fetched and normalized",
+                    request_payload={"asset_id": asset_id},
+                    response_payload={"count": added},
+                    status="SUCCESS",
+                )
+            )
+        except Exception as ex:
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-MAINT-MISSING",
+                    step_number=4,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="get_maintenance_history",
+                    summary="Maintenance history unavailable",
+                    request_payload={"asset_id": asset_id},
+                    response_payload={"error": str(ex)},
+                    status="MISSING",
+                )
+            )
+
+        # Search manuals (simple keyword-driven search)
+        try:
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-MANUAL-START",
+                    step_number=5,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="search_manual",
+                    summary="Manual search start",
+                    request_payload={"asset_id": asset_id, "query": "spindle"},
+                    response_payload={},
+                    status="STARTED",
+                )
+            )
+            manual = self.tools.search_manual({"query": "spindle", "asset_id": asset_id, "max_results": 5})
+            added = 0
+            for r in manual.results:
+                candidate = None
+                try:
+                    candidate = self.tools.evidence_repo.get_evidence(r.incident_id, r.evidence_id)
+                except Exception:
+                    candidate = None
+                timestamp_field = (candidate.get("timestamp") if candidate else None) or ""
+                observation = (candidate.get("observation") if candidate else None) or (r.snippet or "")
+                ev = EvidenceRef(
+                    evidence_id=r.evidence_id,
+                    source="ServiceManual",
+                    timestamp=timestamp_field,
+                    asset=(r.asset or (candidate.get("asset") if candidate else "")),
+                    component=(r.component or (candidate.get("component") if candidate else "")),
+                    observation=observation,
+                    provenance=(r.provenance or (candidate.get("provenance") if candidate else "")),
+                    status="Observed",
+                    confidence=(r.confidence or (candidate.get("confidence") if candidate else "")),
+                )
+                if not any(e.evidence_id == ev.evidence_id for e in state.evidence):
+                    state.add_evidence(ev)
+                    added += 1
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-MANUAL-SUCCESS",
+                    step_number=6,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="search_manual",
+                    summary="Manual search fetched and normalized",
+                    request_payload={"asset_id": asset_id, "query": "spindle"},
+                    response_payload={"count": added},
+                    status="SUCCESS",
+                )
+            )
+        except Exception as ex:
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-MANUAL-MISSING",
+                    step_number=6,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="search_manual",
+                    summary="Manual search unavailable",
+                    request_payload={"asset_id": asset_id},
+                    response_payload={"error": str(ex)},
+                    status="MISSING",
+                )
+            )
+
+        # Prior incidents (preserve summary semantics)
+        try:
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-PRIOR-START",
+                    step_number=7,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="get_prior_incidents",
+                    summary="Prior incidents fetch start",
+                    request_payload={"asset_id": asset_id},
+                    response_payload={},
+                    status="STARTED",
+                )
+            )
+            prior = self.tools.get_prior_incidents({"asset_id": asset_id, "limit": 5})
+            added = 0
+            for ps in prior.incidents:
+                # gather underlying evidence ids if available
+                related = []
+                try:
+                    evs = self.tools.evidence_service.list_evidence(ps.incident_id)
+                    related = [e.evidence_id for e in evs]
+                    # pick a representative timestamp if available
+                    ts = evs[0].timestamp if evs and hasattr(evs[0], "timestamp") else ""
+                except Exception:
+                    ts = ""
+                ev = EvidenceRef(
+                    evidence_id=f"PRIOR-{ps.incident_id}",
+                    source="PriorIncidentSummary",
+                    timestamp=ts,
+                    asset=asset_id or "",
+                    component="",
+                    observation=str(ps.telemetry_summary) if getattr(ps, "telemetry_summary", None) else "Prior incident summary",
+                    provenance=f"incident://{ps.incident_id}",
+                    status="Summary",
+                    confidence="",
+                )
+                # attach related evidence ids as optional attribute if available
+                try:
+                    setattr(ev, "related_evidence_ids", related)
+                except Exception:
+                    pass
+                if not any(e.evidence_id == ev.evidence_id for e in state.evidence):
+                    state.add_evidence(ev)
+                    added += 1
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-PRIOR-SUCCESS",
+                    step_number=8,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="get_prior_incidents",
+                    summary="Prior incidents fetched and summarized",
+                    request_payload={"asset_id": asset_id},
+                    response_payload={"count": added},
+                    status="SUCCESS",
+                )
+            )
+        except Exception as ex:
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-PRIOR-MISSING",
+                    step_number=8,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="get_prior_incidents",
+                    summary="Prior incidents unavailable",
+                    request_payload={"asset_id": asset_id},
+                    response_payload={"error": str(ex)},
+                    status="MISSING",
+                )
+            )
+
+        # Inspection image
+        try:
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-IMAGE-START",
+                    step_number=9,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="get_inspection_image",
+                    summary="Inspection image fetch start",
+                    request_payload={"incident_id": state.incident_id},
+                    response_payload={},
+                    status="STARTED",
+                )
+            )
+            img = self.tools.get_inspection_image({"incident_id": state.incident_id})
+            # storage metadata may be attached
+            ev = EvidenceRef(
+                evidence_id=img.evidence_id,
+                source="InspectionImage",
+                timestamp=img.timestamp,
+                asset=img.asset,
+                component=img.component,
+                observation=(getattr(img, "observation", "") or ""),
+                provenance=img.provenance or "",
+                status="Observed",
+                confidence="",
+            )
+            # attempt to attach storage metadata onto the evidence ref if present
+            if getattr(img, "storage_metadata", None):
+                try:
+                    setattr(ev, "storage_metadata", img.storage_metadata)
+                except Exception:
+                    pass
+            if not any(e.evidence_id == ev.evidence_id for e in state.evidence):
+                state.add_evidence(ev)
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-IMAGE-SUCCESS",
+                    step_number=10,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="get_inspection_image",
+                    summary="Inspection image fetched and normalized",
+                    request_payload={"incident_id": state.incident_id},
+                    response_payload={"evidence_id": img.evidence_id},
+                    status="SUCCESS",
+                )
+            )
+        except Exception as ex:
+            state.record_audit(
+                AuditEvent(
+                    event_id="AUD-EVIDENCE-IMAGE-MISSING",
+                    step_number=10,
+                    timestamp="1970-01-01T00:00:00Z",
+                    agent_role="evidence_agent",
+                    tool_call="get_inspection_image",
+                    summary="Inspection image unavailable",
+                    request_payload={"incident_id": state.incident_id},
                     response_payload={"error": str(ex)},
                     status="MISSING",
                 )

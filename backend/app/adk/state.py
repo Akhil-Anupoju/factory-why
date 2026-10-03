@@ -136,3 +136,21 @@ class InvestigationState(BaseModel):
             self.audit_events.append(ev_obj)
             return
         raise TypeError("audit event must be AuditEvent or dict")
+
+    def build_evidence_bundle(self) -> Dict[str, Any]:
+        """Construct a serializable evidence bundle for downstream agents.
+
+        Returns a dict with incident_id, optional asset_context, and a list of
+        evidence items serialized to plain dicts.
+        """
+        return {
+            "incident_id": self.incident_id,
+            "asset_context": self.asset_context.model_dump() if self.asset_context else None,
+            "evidence": [e.model_dump() for e in self.evidence],
+        }
+
+
+class EvidenceBundle(BaseModel):
+    incident_id: str
+    asset_context: Optional[AssetContext] = None
+    evidence: List[EvidenceRef] = Field(default_factory=list)
