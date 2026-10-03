@@ -1,89 +1,87 @@
-# Factory WHY Backend - Phase 1
+ # Factory WHY Backend - Phase 2 (Architecture Summary)
 
-This folder contains the Phase 1 backend slice for Factory WHY: a minimal
-FastAPI application, a deterministic simulator ported from the frontend, and
-fixture-backed endpoints used for local development and tests.
+ This backend slice implements Phase 2 infrastructure: an application
+ factory with dependency injection, typed repository boundaries, an
+ EvidenceService that validates evidence and preserves provenance, and a
+ small set of read-only allowlisted tools. The implementation preserves the
+ Phase 1 fixture-backed API contracts while enabling a clear path to
+ production adapters for Firestore, BigQuery and Cloud Storage.
 
-Important: Phase 1 is intentionally isolated. It does NOT integrate with
-ADK / Vertex AI, Firestore, BigQuery, Cloud Storage, or Firebase Auth.
+ Key concepts
+ - Application factory / dependency injection: use `create_app(settings)`
+   from `backend/app/app_factory.py` to create a FastAPI application wired
+   with the desired repositories and services. The factory stores runtime
+   dependencies on `app.state.deps` and exposes small FastAPI dependency
+   getters (eg. `get_incident_repo`, `get_evidence_service`) used by
+   route handlers.
 
-System requirements
-- Python 3.12 (recommended). The code and tests were validated under
-  Python 3.12.
+ - Local / test mode: by default the app runs in LOCAL mode and uses
+   in-memory repository fakes (`backend/app/repositories/in_memory.py`) so
+   unit tests and local development do not require cloud credentials.
 
-Dependencies and packaging
-- The backend declares dependencies in `backend/pyproject.toml`.
-- Minimal runtime dependencies: FastAPI, Pydantic (v2), Uvicorn.
-- Dev/test dependencies: pytest, httpx
+ - Production adapters: the application factory contains production
+   adapters (lazy-imported) for Firestore, BigQuery, and GCS in
+   `backend/app/repositories/{firestore_repo.py,bigquery_repo.py,storage_repo.py}`.
+   Those adapters are only constructed when the factory is invoked with
+   `runtime_mode=PRODUCTION` and the google-cloud libraries are available.
 
-Create and sync a development environment (example, macOS / Linux):
+ Repositories and boundaries
+ - IncidentRepository: read/write and list incidents.
+ - EvidenceRepository: list/get/upsert evidence items.
+ - AuditRepository: list/append audit events.
+ - TelemetryRepository: query telemetry rows (used by EvidenceService to
+   normalize telemetry into EvidenceItem objects).
+ - StorageRepository: metadata listing and object metadata retrieval.
 
-1. Create a Python 3.12 virtualenv:
+ EvidenceService
+ - `backend/app/services/evidence_service.py` performs evidence
+   normalization and validation. It validates all evidence items with the
+   Pydantic `EvidenceItem` schema and filters out `inferred`/generated
+   evidence. Telemetry rows are normalized to EvidenceItems and validated
+   as well.
 
-   python3.12 -m venv .venv
-   source .venv/bin/activate
+ Allowlisted read-only tools
+ - Implemented as thin wrappers that delegate to repositories and
+   EvidenceService (business logic remains in services/repositories).
+ - Tools (read-only):
+   - `get_asset_context` — returns typed asset metadata for a given asset_id
+   - `get_telemetry_window` — returns a time-windowed telemetry point list
+     (aggregates sensor channels into TelemetryPoint objects)
+   - `get_maintenance_history` — returns maintenance work orders derived
+     from validated evidence items (observed only)
+   - `search_manual` — simple asset-scoped manual text search over
+     service-manual evidence (no external search infra)
+   - `get_prior_incidents` — returns prior incident summaries for an asset
+   - `get_inspection_image` — returns inspection image metadata and storage
+     repository metadata derived from evidence provenance
 
-2. Install dependencies into the venv (example):
+ - Tool contracts are explicitly typed with Pydantic models in
+   `backend/app/tools/tool_impl.py` and the wrappers never call databases
+   directly or construct arbitrary URLs. get_inspection_image uses the
+   StorageRepository to obtain metadata; it does not produce signed URLs.
 
-   python -m pip install --upgrade pip
-   python -m pip install fastapi pydantic uvicorn pytest httpx
+ Fixture seeding
+ - The canonical Phase 1 fixture is `backend/fixtures/cnc04-primary.json`.
+ - Seed helpers (`backend/app/seed/seed_from_fixture.py`) populate the
+   InMemory repositories for tests and local runs. Tests seed explicitly
+   from the fixture; seeding is not automatic in test setup to avoid
+   accidental cloud writes.
 
-   (Or use your preferred tooling reading `backend/pyproject.toml`.)
+ Development notes
+ - Python 3.12 is the supported runtime for local development and CI.
+ - Runtime dependencies are declared in `backend/pyproject.toml`.
+ - Run tests locally:
+   - `pytest -q backend/tests`
+ - Run the FastAPI app for manual testing:
+   - `uvicorn backend.app.main:app --reload --port 8000`
 
-Running tests
-- To run the Phase 1 backend tests:
+ Safety and constraints
+ - Unit tests and local runs do NOT use production cloud clients; the
+   production adapters are lazy-imported and only created when
+   `runtime_mode=PRODUCTION` and the google-cloud libraries are installed.
+ - The codebase must not include service-account keys or secrets in source.
+ - ADK / Gemini / Vertex AI / Cloud write workflows are Phase 3 work and
+   are explicitly out of scope for Phase 2.
 
-  pytest -q backend/tests
-
-  Tests assert schema validation, deterministic simulator parity, API
-  endpoints, SSE content, and fixture parity checks.
-
-Running FastAPI locally
-- Start the server locally for manual testing:
-
-  uvicorn backend.app.main:app --reload --port 8000
-
-- The API is mounted under the prefix `/api`.
-
-Fixture-backed architecture
-- The backend owns a Phase 1 JSON fixture at `backend/fixtures/cnc04-primary.json`.
-- The fixture was derived from the frontend canonical baseline at
-  `src/data/mockScenarios.ts` and contains the full InvestigationCase object
-  required by the Phase 1 Pydantic schemas and API.
-- The repository intentionally does NOT parse TypeScript at runtime. Instead
-  the backend reads its own JSON fixture. Tests include a parity check to
-  detect drift between the frontend TypeScript source and the backend JSON
-  fixture.
-
-Available Phase 1 API endpoints (fixture-backed)
-- GET  /api/health                       -> health check
-- GET  /api/incidents/{incident_id}      -> return InvestigationCase fixture
-- GET  /api/incidents/{incident_id}/audit-> return audit trail
-- GET  /api/incidents/{incident_id}/stream -> server-sent events (SSE) demo stream
-- POST /api/incidents/{incident_id}/simulate -> run deterministic simulator (Pydantic params)
-- POST /api/incidents/{incident_id}/challenge -> return fixture-shaped critic finding
-
-Notes on the SSE endpoint
-- The SSE endpoint is fixture-driven for Phase 1. It returns a small
-  sequence of events for the UI demo. For Phase 1 it is implemented as a
-  synchronous generator with a short sleep for predictability; convert to an
-  async generator if you migrate to production.
-
-Deterministic simulator
-- The simulator implementation was ported from `src/data/mockScenarios.ts`.
-- It produces three ordered options: CONTINUE, INSPECT, REPAIR. Unit tests
-  validate numerical outputs and trace strings.
-
-Phase 2 integrations
-- This slice intentionally omits production integrations. The following are
-  NOT implemented in Phase 1 and will be added only in Phase 2 with
-  explicit approval: ADK, Vertex AI, Firestore, BigQuery, Cloud Storage,
-  Firebase Auth.
-
-Developer notes
-- The backend tests include a parity check that ensures a small set of
-  canonical values from `backend/fixtures/cnc04-primary.json` are present in
-  `src/data/mockScenarios.ts` to detect drift between frontend and backend
-  representations. This test fails loudly when a mismatch is detected.
-
-If you want me to prepare a commit combining these Phase 1 changes, say so.
+ If you'd like, I can prepare a final commit for Phase 2 that includes the
+ tool implementations, tests, README updates and a minimal CI workflow.
