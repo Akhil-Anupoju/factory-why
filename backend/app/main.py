@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from .api import incidents
+from .auth import AuthService, FirebaseVerifier
 from .repositories.in_memory import InMemoryIncidentRepo, InMemoryEvidenceRepo, InMemoryAuditRepo, InMemoryTelemetryRepo, InMemoryStorageRepo
 from .seed.seed_from_fixture import seed_from_fixture
 
@@ -21,6 +22,11 @@ def create_app() -> FastAPI:
         "te_repo": te_repo,
         "st_repo": st_repo,
     }
+
+    # provide an application-scoped AuthService instance; tests may replace
+    # this on app.state.auth_service with a fake implementation for offline
+    # testing. Keep Firebase SDK usage inside FirebaseVerifier (lazy).
+    app.state.auth_service = AuthService(FirebaseVerifier())
 
     # seed fixture data into shared in-memory repos so endpoints operate
     try:

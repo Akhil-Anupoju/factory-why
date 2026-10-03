@@ -25,3 +25,10 @@ def get_telemetry_repo(request: Request) -> TelemetryRepository:
 def get_storage_repo(request: Request) -> StorageRepository:
     return request.app.state.repos["st_repo"]
 
+
+def get_auth_service(request: Request):
+    """Return the application-scoped AuthService instance.
+
+    Tests may replace `app.state.auth_service` with a fake implementation.
+    """
+    return request.app.state.auth_service

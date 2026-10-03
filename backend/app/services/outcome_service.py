@@ -59,7 +59,13 @@ class OutcomeService:
 
         # audit
         try:
-            self.audit_repo.append_audit(incident_id, {"event_id": "AUD-OUTCOME-RECORDED", "step_number": 840, "timestamp": self._now(), "agent_role": "outcome_service", "tool_call": "record_outcome", "summary": "Outcome recorded", "request_payload": {"action_id": action.action_id if action else None}, "response_payload": outcome.model_dump(), "status": "SUCCESS"})
+            # Do not include sensitive tokens in audit. Include actor identity if present via approval
+            # Include stable verified uid when available in approval.engineer_name
+            # Prefer storing uid to avoid exposing email addresses in audit payloads.
+            req = {"action_id": action.action_id if action else None}
+            if hasattr(approval, "engineer_name") and approval.engineer_name:
+                req["approved_by_uid"] = approval.engineer_name
+            self.audit_repo.append_audit(incident_id, {"event_id": "AUD-OUTCOME-RECORDED", "step_number": 840, "timestamp": self._now(), "agent_role": "outcome_service", "tool_call": "record_outcome", "summary": "Outcome recorded", "request_payload": req, "response_payload": outcome.model_dump(), "status": "SUCCESS"})
         except Exception:
             pass
 

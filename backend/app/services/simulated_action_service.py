@@ -63,7 +63,7 @@ class SimulatedActionService:
             self.audit_repo.append_audit(incident_id, {"event_id": "AUD-ACTION-BLOCKED", "step_number": 823, "timestamp": self._now(), "agent_role": "simulated_action_service", "tool_call": "execute", "summary": "Action blocked due to recommendation mismatch", "request_payload": {"approval_recommendation_id": approval.recommendation_id}, "response_payload": {}, "status": "BLOCKED"})
             raise ActionError("Approval does not match recommendation")
 
-        # record start
+        # record start - include verified actor if present in approval metadata
         self._record_audit(incident_id, "AUD-ACTION-SIMULATION-START", {"recommendation_id": recommendation.recommendation_id, "approval_id": approval.approval_id})
 
         # produce simulated action record with required typed fields

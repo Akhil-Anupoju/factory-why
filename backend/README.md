@@ -67,21 +67,35 @@
    from the fixture; seeding is not automatic in test setup to avoid
    accidental cloud writes.
 
- Development notes
+Development notes
  - Python 3.12 is the supported runtime for local development and CI.
  - Runtime dependencies are declared in `backend/pyproject.toml`.
- - Run tests locally:
-   - `pytest -q backend/tests`
+- Run tests locally:
+    - `pytest -q backend/tests`
  - Run the FastAPI app for manual testing:
    - `uvicorn backend.app.main:app --reload --port 8000`
 
- Safety and constraints
- - Unit tests and local runs do NOT use production cloud clients; the
-   production adapters are lazy-imported and only created when
-   `runtime_mode=PRODUCTION` and the google-cloud libraries are installed.
- - The codebase must not include service-account keys or secrets in source.
- - ADK / Gemini / Vertex AI / Cloud write workflows are Phase 3 work and
-   are explicitly out of scope for Phase 2.
+Safety and constraints
+- Unit tests and local runs do NOT use production cloud clients; the
+  production adapters are lazy-imported and only created when
+  `runtime_mode=PRODUCTION` and the google-cloud libraries are installed.
+- The codebase must not include service-account keys or secrets in source.
+- ADK / Gemini / Vertex AI / Cloud write workflows are Phase 3 work and
+  are explicitly out of scope for Phase 2.
+
+Authentication (Phase 4C)
+ - Approval and Action endpoints require Firebase ID tokens passed in the
+   `Authorization: Bearer <ID_TOKEN>` header. Tokens are verified server-side
+   by the application using an AuthService that encapsulates the verification
+   boundary.
+ - Actor identity is authoritative only when derived from the verified token
+   (the server uses the token uid for audit records). Do NOT rely on any
+   `actor` field supplied in the request body.
+ - For local tests the AuthService is replaceable (injected into
+   `app.state.auth_service`) and tests use a fake AuthService so no Firebase
+   credentials or network calls are required.
+ - Production verification uses Application Default Credentials / runtime
+   identity. Do NOT commit service account JSON keys to source.
 
  If you'd like, I can prepare a final commit for Phase 2 that includes the
  tool implementations, tests, README updates and a minimal CI workflow.

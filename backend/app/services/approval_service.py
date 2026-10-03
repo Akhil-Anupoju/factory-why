@@ -51,7 +51,7 @@ class ApprovalService:
 
         # audit
         try:
-            self.audit_repo.append_audit(incident_id, {"event_id": "AUD-APPROVAL-REQUESTED", "step_number": 800, "timestamp": self._now(), "agent_role": "approval_service", "tool_call": "request_approval", "summary": "Approval requested", "request_payload": {"actor": actor, "recommendation_id": recommendation.recommendation_id}, "response_payload": {"approval_id": approval_id}, "status": "STARTED"})
+            self.audit_repo.append_audit(incident_id, {"event_id": "AUD-APPROVAL-REQUESTED", "step_number": 800, "timestamp": self._now(), "agent_role": "approval_service", "tool_call": "request_approval", "summary": "Approval requested", "request_payload": {"recommendation_id": recommendation.recommendation_id}, "response_payload": {"approval_id": approval_id}, "status": "STARTED"})
         except Exception:
             pass
 
@@ -84,7 +84,9 @@ class ApprovalService:
         # audit
         event_id = "AUD-APPROVAL-APPROVED" if decision == "APPROVED" else ("AUD-APPROVAL-REJECTED" if decision == "REJECTED" else "AUD-APPROVAL-MORE-EVIDENCE")
         try:
-            self.audit_repo.append_audit(incident_id, {"event_id": event_id, "step_number": 810, "timestamp": self._now(), "agent_role": "approval_service", "tool_call": "decide", "summary": f"Approval decision: {decision}", "request_payload": {"approval_id": approval_id, "actor": actor}, "response_payload": {"decision": decision}, "status": "SUCCESS"})
+            # Do not log raw tokens or credentials in request_payload; include approved_by_uid
+            payload = {"approval_id": approval_id, "approved_by_uid": actor}
+            self.audit_repo.append_audit(incident_id, {"event_id": event_id, "step_number": 810, "timestamp": self._now(), "agent_role": "approval_service", "tool_call": "decide", "summary": f"Approval decision: {decision}", "request_payload": payload, "response_payload": {"decision": decision}, "status": "SUCCESS"})
         except Exception:
             pass
 
