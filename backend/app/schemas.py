@@ -153,6 +153,7 @@ class Recommendation(BaseModel):
 class ApprovalRecord(BaseModel):
     approval_id: str
     incident_id: str
+    recommendation_id: Optional[str] = None
     decision: str
     engineer_name: str
     engineer_role: str

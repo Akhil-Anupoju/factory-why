@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import List, Dict, Any
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..simulation.simulator import calculate_deterministic_simulation
 from ..schemas import SimulationParameters, SimulationOptionResult, Recommendation, AuditEvent
@@ -25,7 +25,7 @@ class DecisionService:
         self.audit_repo = audit_repo
 
     def _now(self) -> str:
-        return datetime.utcnow().isoformat() + "Z"
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
     def _record_audit(self, incident_id: str, event_id: str, step_number: int, summary: str, request_payload: Dict[str, Any], response_payload: Dict[str, Any], status: str = "SUCCESS"):
         evt = AuditEvent(
