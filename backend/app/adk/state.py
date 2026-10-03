@@ -40,6 +40,12 @@ class CriticFinding(BaseModel):
     contradictions: List[Dict[str, Any]] = Field(default_factory=list)
     ignored_evidence: List[Dict[str, Any]] = Field(default_factory=list)
     falsification_condition: Optional[str] = None
+    # Single-most discriminating missing evidence descriptor
+    most_discriminating_missing_evidence: Optional[str] = None
+    # numeric revision suggested for leading hypothesis confidence
+    confidence_revision: Optional[float] = None
+    # optional request_more_evidence shape: {"tool": "get_inspection_image", "params": {...}}
+    request_more_evidence: Optional[Dict[str, Any]] = None
 
 
 class SimulationResult(BaseModel):

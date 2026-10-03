@@ -47,6 +47,14 @@ class EvidenceAgent:
         observation, provenance, status, confidence.
         """
 
+        # If model is None, skip creating ADK LlmAgent/Runner to allow deterministic tests
+        # to instantiate the EvidenceAgent without ADK model validation.
+        if model is None:
+            self.agent = None
+            self.session_service = None
+            self.runner = None
+            return
+
         # LlmAgent is not actually invoked for deterministic tests; we keep the shape to
         # follow ADK patterns and to allow swapping in a real model later.
         self.agent = LlmAgent(model=model, name="evidence_agent", instruction=instr, tools=self.func_tools)
