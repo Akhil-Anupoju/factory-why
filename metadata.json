@@ -1,0 +1,6 @@
+{
+  "name": "Factory WHY - Industrial Root-Cause Investigation",
+  "description": "AI-powered industrial root-cause investigation and decision-support workspace for reliability and maintenance engineers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
