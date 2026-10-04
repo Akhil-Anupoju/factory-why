@@ -9,21 +9,27 @@ try:
             self.dataset = dataset
             self.table = table
 
-        def query_telemetry(self, asset_id: str, limit: int = 100) -> List[Dict[str, Any]]:
-            # Simple safe parameterized query
-            q = f"SELECT timestamp, sensor_id, asset_id, value, unit, quality, scenario_id FROM `{self.client.project}.{self.dataset}.{self.table}` WHERE asset_id = @asset_id ORDER BY timestamp DESC LIMIT @limit"
-            job_config = bigquery.QueryJobConfig(
-                query_parameters=[
-                    bigquery.ScalarQueryParameter("asset_id", "STRING", asset_id),
-                    bigquery.ScalarQueryParameter("limit", "INT64", limit),
-                ]
-            )
+        def query_telemetry(self, asset_id: str, start_timestamp: str = None, end_timestamp: str = None, limit: int = 100) -> List[Dict[str, Any]]:
+            # Controlled parameterized query owned by application
+            table_ref = f"{self.client.project}.{self.dataset}.{self.table}"
+            q = f"SELECT timestamp, sensor_id, asset_id, value, unit, quality, scenario_id FROM `{table_ref}` WHERE asset_id = @asset_id"
+            params = [bigquery.ScalarQueryParameter("asset_id", "STRING", asset_id)]
+            if start_timestamp:
+                q += " AND timestamp >= @start_ts"
+                params.append(bigquery.ScalarQueryParameter("start_ts", "TIMESTAMP", start_timestamp))
+            if end_timestamp:
+                q += " AND timestamp <= @end_ts"
+                params.append(bigquery.ScalarQueryParameter("end_ts", "TIMESTAMP", end_timestamp))
+            q += " ORDER BY timestamp DESC LIMIT @limit"
+            params.append(bigquery.ScalarQueryParameter("limit", "INT64", limit))
+
+            job_config = bigquery.QueryJobConfig(query_parameters=params)
             query_job = self.client.query(q, job_config=job_config)
             rows = list(query_job.result())
             out = []
             for r in rows:
                 out.append({
-                    "timestamp": r[0],
+                    "timestamp": r[0].isoformat() if hasattr(r[0], 'isoformat') else r[0],
                     "sensor_id": r[1],
                     "asset_id": r[2],
                     "value": r[3],

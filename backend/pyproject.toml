@@ -9,6 +9,10 @@ dependencies = [
     "pydantic>=2.3",
     "uvicorn[standard]>=0.23.0",
     "google-adk>=1.22.0",
+    # Google Cloud client libraries required for production adapters
+    "google-cloud-firestore>=2.9.0,<3.0.0",
+    "google-cloud-bigquery>=3.6.0,<4.0.0",
+    "google-cloud-storage>=2.7.0,<3.0.0",
 ]
 
 [project.optional-dependencies]

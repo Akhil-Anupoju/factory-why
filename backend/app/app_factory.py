@@ -18,27 +18,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title="Factory WHY - Backend")
 
-    # Dependency wiring based on runtime mode
-    if settings.runtime_mode.upper() == "PRODUCTION":
-        # Create cloud clients lazily here; in tests do not set runtime_mode=PRODUCTION
+    # Dependency wiring based on runtime mode. Support both 'PRODUCTION' and
+    # 'CLOUD' as explicit cloud modes. Do not silently fall back from cloud
+    # mode to in-memory repositories; raise if cloud libraries are missing.
+    if settings.runtime_mode.upper() in ("PRODUCTION", "CLOUD"):
+        # Create cloud repositories via factory that centralizes client creation
+        from .repositories.cloud_repo_factory import create_cloud_repos
+
         try:
-            from google.cloud import firestore as _firestore
-            from google.cloud import bigquery as _bigquery
-            from google.cloud import storage as _storage
+            incident_repo, evidence_repo, audit_repo, telemetry_repo, storage_repo = create_cloud_repos(
+                settings.gcp_project, settings.bigquery_dataset, settings.bigquery_table, settings.gcs_bucket
+            )
         except Exception as e:
-            raise RuntimeError(
-                "Production mode requires google-cloud libraries. Install extras 'gcp' or the google-cloud packages."
-            ) from e
-
-        fs_client = _firestore.Client()
-        bq_client = _bigquery.Client()
-        storage_client = _storage.Client()
-
-        incident_repo = FirestoreIncidentRepo(fs_client)
-        evidence_repo = FirestoreEvidenceRepo(fs_client)
-        audit_repo = FirestoreAuditRepo(fs_client)
-        telemetry_repo = BigQueryTelemetryRepo(bq_client, dataset=settings.bigquery_dataset, table=settings.bigquery_table)
-        storage_repo = GCSStorageRepo(storage_client, bucket_name=settings.gcs_bucket)
+            # Fail fast in production mode — do not silently fall back to in-memory repos
+            raise RuntimeError("Failed to initialize cloud repositories: %s" % str(e)) from e
     else:
         # Local/test mode uses in-memory repos; no cloud clients created
         incident_repo = InMemoryIncidentRepo()

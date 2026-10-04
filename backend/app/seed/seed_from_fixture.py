@@ -2,9 +2,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from ..repositories.in_memory import InMemoryIncidentRepo, InMemoryEvidenceRepo, InMemoryAuditRepo
+from ..repositories.interfaces import IncidentRepository, EvidenceRepository, AuditRepository
 
 
-def seed_from_fixture(incident_repo: InMemoryIncidentRepo, evidence_repo: InMemoryEvidenceRepo, audit_repo: InMemoryAuditRepo, fixture_path: Path | str = "backend/fixtures/cnc04-primary.json"):
+def seed_from_fixture(incident_repo: IncidentRepository, evidence_repo: EvidenceRepository, audit_repo: AuditRepository, fixture_path: Path | str = "backend/fixtures/cnc04-primary.json"):
     p = Path(fixture_path)
     if not p.exists():
         raise FileNotFoundError(p)

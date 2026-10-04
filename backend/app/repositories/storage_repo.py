@@ -12,6 +12,7 @@ try:
             blob = self.bucket.blob(path)
             if not blob.exists():
                 return None
+            # Do not generate signed URLs here; only return metadata
             return {
                 "name": blob.name,
                 "size": blob.size,

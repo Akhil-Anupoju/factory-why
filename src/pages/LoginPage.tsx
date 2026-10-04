@@ -1,20 +1,24 @@
 import React, { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { LogIn, UserPlus, Key } from 'lucide-react';
+import { LogIn, UserPlus, Key, Eye, EyeOff } from 'lucide-react';
 import FactoryHero from '../assets/factory-hero.svg?url';
-import AmbientGear from '../assets/ambient-gear.svg?url';
 
 // Visually improved login page with local account creation and Google OAuth
 export const LoginPage: React.FC = () => {
-  const { signIn, signInLocal, signUpLocal } = useAuth() as any;
+  const auth = useAuth() as any;
+  const { signIn, signInLocal, signUpLocal } = auth;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<'login' | 'signup' | 'oauth'>('oauth');
+  // default to signup to match the requested design
+  const [mode, setMode] = useState<'login' | 'signup' | 'oauth'>('signup');
 
-  // local form fields
+  // form fields
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [agree, setAgree] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const clearError = () => setError(null);
 
@@ -27,27 +31,14 @@ export const LoginPage: React.FC = () => {
     } finally { setLoading(false); }
   };
 
-  const handleDemoSignIn = async () => {
+  const handleAppleSignIn = async () => {
     setLoading(true); clearError();
-    const demoEmail = 'demo@factorywhy.local';
-    const demoPassword = 'demopass123';
     try {
-      // Try sign in first, otherwise create the demo account then sign in
-      if (signInLocal) {
-        try {
-          await signInLocal(demoEmail, demoPassword);
-          return;
-        } catch (_) {
-          // not found, try create
-        }
-      }
-
-      if (signUpLocal) {
-        await signUpLocal(demoEmail, demoPassword, 'Demo Engineer');
+      if (auth && typeof auth.signInApple === 'function') {
+        await auth.signInApple();
       } else {
-        const authModule = await import('../auth/localAuth');
-        await authModule.createLocalAccount(demoEmail, demoPassword, 'Demo Engineer');
-        if (signInLocal) await signInLocal(demoEmail, demoPassword);
+        // Apple OAuth not configured in this environment — inform operator
+        setError('Apple Sign-In is not configured in this environment.');
       }
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -66,11 +57,18 @@ export const LoginPage: React.FC = () => {
   const handleLocalSignup = async () => {
     setLoading(true); clearError();
     try {
+      const displayName = `${firstName.trim()} ${lastName.trim()}`.trim() || email.split('@')[0];
+      if (!agree) {
+        setError('You must agree to the Terms & Conditions to create an account.');
+        setLoading(false);
+        return;
+      }
+
       if (signUpLocal) {
-        await signUpLocal(email, password, displayName || email.split('@')[0]);
+        await signUpLocal(email, password, displayName || undefined);
       } else {
         const authModule = await import('../auth/localAuth');
-        await authModule.createLocalAccount(email, password, displayName || email.split('@')[0]);
+        await authModule.createLocalAccount(email, password, displayName || undefined);
         if (signInLocal) await signInLocal(email, password);
       }
     } catch (e: any) {
@@ -90,21 +88,13 @@ export const LoginPage: React.FC = () => {
       </div>
 
       <div className="relative z-10 max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left: Visual Brand & Pitch */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-8 flex flex-col justify-between shadow-lg backdrop-blur-sm">
-          <div>
-            <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-400 mx-auto flex items-center justify-center text-slate-900 font-extrabold text-3xl">FW</div>
-            <h1 className="text-2xl font-bold text-center mt-4">Factory WHY</h1>
-            <p className="text-slate-300 text-sm mt-3 text-center">Reliable, auditable decisions for industrial maintenance — control the gate with shared human + model workflows.</p>
-          </div>
-
-          <div className="mt-6 text-center">
-            <div className="text-xs text-slate-400">Try the demo account or create a local account for offline evaluation.</div>
-            <div className="mt-3 flex items-center justify-center gap-2">
-              <button onClick={() => { setMode('oauth'); clearError(); }} className={`px-3 py-1 rounded text-sm ${mode==='oauth'?'bg-cyan-600 text-white':'bg-slate-800 text-slate-300'}`}>Google</button>
-              <button onClick={() => { setMode('login'); clearError(); }} className={`px-3 py-1 rounded text-sm ${mode==='login'?'bg-emerald-600 text-white':'bg-slate-800 text-slate-300'}`}>Local Login</button>
-              <button onClick={() => { setMode('signup'); clearError(); }} className={`px-3 py-1 rounded text-sm ${mode==='signup'?'bg-amber-500 text-white':'bg-slate-800 text-slate-300'}`}>Create Account</button>
-            </div>
+        {/* Left: Full-bleed hero panel to match design in the provided image */}
+        <div className="relative overflow-hidden rounded-lg shadow-lg">
+          <img src={FactoryHero} alt="Factory WHY hero" className="w-full h-full object-cover max-h-[720px]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/60 to-slate-900/80" />
+          <div className="absolute left-6 bottom-8 text-white max-w-xs">
+            <div className="text-4xl font-extrabold">Factory WHY</div>
+            <div className="mt-3 text-sm opacity-90">Capturing signals. Creating auditable decisions for industrial operations.</div>
           </div>
         </div>
 
@@ -112,50 +102,57 @@ export const LoginPage: React.FC = () => {
         <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 shadow-lg transform transition-all will-change-transform hover:-translate-y-1 hover:scale-[1.01] focus-within:-translate-y-1 focus-within:scale-[1.01]">
           {error && <div role="alert" className="mb-4 text-sm text-rose-300">{error}</div>}
 
-          {mode === 'oauth' && (
+          {/* Sign-up layout aligned to image reference: title, inputs, checkbox, CTA, OR divider, social buttons */}
+          {mode === 'signup' && (
             <div className="space-y-4">
-              <div className="text-sm text-slate-300">Sign in with Google for a quick secure authentication.</div>
-              {/* Official-style Google sign-in button with accessibility attributes */}
-              <button
-                onClick={handleGoogleSignIn}
-                disabled={loading}
-                type="button"
-                aria-label="Sign in with Google"
-                aria-describedby="googleSignInDesc"
-                className="w-full inline-flex items-center gap-3 px-4 py-2 bg-white text-slate-900 rounded-md font-medium shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-400 transition"
-              >
-                <span className="w-6 h-6 flex items-center justify-center ml-0">
-                  <svg viewBox="0 0 533.5 544.3" width="18" height="18" aria-hidden="true" focusable="false" role="img">
-                    <path fill="#4285F4" d="M533.5 278.4c0-18.6-1.5-37-4.6-54.8H272v103.8h146.9c-6.4 34.6-26.6 63.9-56.8 83.4v69.3h91.9c53.9-49.6 85.5-122.8 85.5-201.7z"/>
-                    <path fill="#34A853" d="M272 544.3c76.6 0 141-25.5 188-69.2l-91.9-69.3c-25.6 17.2-58.5 27.4-96.1 27.4-73.8 0-136.3-49.8-158.6-116.4H18.6v73.4C65.8 491 163.8 544.3 272 544.3z"/>
-                    <path fill="#FBBC05" d="M113.4 323.2c-11.7-34.6-11.7-71.7 0-106.3V143.5H18.6c-39.7 79.6-39.7 172.8 0 252.4l94.8-72.7z"/>
-                    <path fill="#EA4335" d="M272 108.2c39 0 74 13.4 101.6 39.7l76.1-76.1C413.9 24.1 349.6 0 272 0 163.8 0 65.8 53.3 18.6 143.5l94.8 73.4C135.7 157.9 198.2 108.2 272 108.2z"/>
-                  </svg>
-                </span>
-                <span className="flex-1 text-left">{loading ? 'Signing in…' : 'Sign in with Google'}</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-60">
-                  <path d="M5 12h14" stroke="#0f1724" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M12 5l7 7-7 7" stroke="#0f1724" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
+              <h2 className="text-3xl font-extrabold">Create an account</h2>
+              <div className="text-sm text-slate-400">Already have an account? <button onClick={() => setMode('login')} className="text-cyan-400 underline">Log in</button></div>
 
-              <p id="googleSignInDesc" className="sr-only">Authenticate using your Google account. No data is stored without consent.</p>
-
-              <div className="mt-3 flex justify-center">
-                <button onClick={handleDemoSignIn} disabled={loading} className="text-xs px-3 py-1 rounded-md bg-slate-800 text-slate-300 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400">Sign in as demo</button>
+              <div className="grid grid-cols-2 gap-3">
+                <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" className="p-3 rounded bg-slate-800 border border-slate-700" />
+                <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" className="p-3 rounded bg-slate-800 border border-slate-700" />
               </div>
 
-              <div className="text-center text-xs text-slate-500">Or create a local account for offline/demo use.</div>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full p-3 rounded bg-slate-800 border border-slate-700" />
+
+              <div className="relative">
+                <input type={showPassword? 'text':'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" className="w-full p-3 rounded bg-slate-800 border border-slate-700" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="w-4 h-4" /> I agree to the <a className="underline">Terms & Conditions</a></label>
+
+              <button onClick={handleLocalSignup} disabled={loading} className="w-full py-3 rounded bg-violet-600 text-white font-medium">{loading? 'Creating…' : 'Create account'}</button>
+
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                <span className="flex-1 border-t border-slate-700" />
+                <span className="whitespace-nowrap">Or register with</span>
+                <span className="flex-1 border-t border-slate-700" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={handleGoogleSignIn} className="flex items-center gap-2 justify-center p-3 rounded border border-slate-700 bg-transparent"> 
+                  <img src="/assets/google-g-logo.png" alt="Google" className="w-5 h-5" />
+                  <span>Google</span>
+                </button>
+                <button onClick={handleAppleSignIn} className="flex items-center gap-2 justify-center p-3 rounded border border-slate-700 bg-transparent">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="opacity-90"><path d="M16.365 1.43c.002.157.007.314.016.47-.01.007-.02.014-.03.021C16.311 6.02 19.77 7.78 19.77 11.08c0 1.63-.64 3.08-1.7 4.05-.86.81-2.02 1.25-3.3 1.25-.75 0-1.49-.16-2.18-.48-.07-.03-.13-.06-.2-.09-1.18.29-2.47.25-3.9-.26 1.74-.45 3.05-1.56 3.87-2.92.25-.45.47-.92.61-1.42.25-.36.61-.65 1.03-.77.14-.04.28-.06.43-.06.48 0 .92.22 1.25.58.22.13.41.29.58.47.24-.13.47-.27.69-.41.93-.58 1.48-1.56 1.48-2.63 0-.9-.44-1.69-1.11-2.17-.12-.09-.25-.17-.38-.24.23-.31.43-.66.57-1.03.33-.87.52-1.81.52-2.79 0-.05 0-.09 0-.14 0-.28-.02-.56-.06-.83C15.96 1.45 16.17 1.44 16.365 1.43z"/></svg>
+                  <span>Apple</span>
+                </button>
+              </div>
             </div>
           )}
 
           {mode === 'login' && (
             <div className="space-y-4">
-              <label className="block text-xs text-slate-400 uppercase">Email</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-sm" placeholder="you@company.com" />
-
-              <label className="block text-xs text-slate-400 uppercase">Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-sm" placeholder="••••••••" />
+              <h2 className="text-2xl font-bold">Sign in</h2>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full p-3 rounded bg-slate-800 border border-slate-700" />
+              <div className="relative">
+                <input type={showPassword? 'text':'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full p-3 rounded bg-slate-800 border border-slate-700" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+              </div>
 
               <div className="flex gap-2">
                 <button onClick={handleLocalSignIn} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded font-medium">
@@ -164,26 +161,17 @@ export const LoginPage: React.FC = () => {
                 </button>
                 <button onClick={() => setMode('signup')} className="flex-0 px-3 py-2 bg-slate-800 text-slate-300 rounded">Create</button>
               </div>
-            </div>
-          )}
 
-          {mode === 'signup' && (
-            <div className="space-y-4">
-              <label className="block text-xs text-slate-400 uppercase">Full name</label>
-              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-sm" placeholder="Akhil Anupoju" />
-
-              <label className="block text-xs text-slate-400 uppercase">Email</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-sm" placeholder="you@company.com" />
-
-              <label className="block text-xs text-slate-400 uppercase">Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 rounded bg-slate-800 border border-slate-700 text-sm" placeholder="Min 6 characters" />
-
-              <div className="flex gap-2">
-                <button onClick={handleLocalSignup} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded font-medium">
-                  <UserPlus className="w-4 h-4" />
-                  <span>{loading? 'Creating…':'Create Account'}</span>
+              <div className="text-center text-xs text-slate-500">Or sign in with</div>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={handleGoogleSignIn} className="flex items-center gap-2 justify-center p-3 rounded border border-slate-700 bg-transparent"> 
+                  <img src="/assets/google-g-logo.png" alt="Google" className="w-5 h-5" />
+                  <span>Google</span>
                 </button>
-                <button onClick={() => setMode('login')} className="flex-0 px-3 py-2 bg-slate-800 text-slate-300 rounded">Back</button>
+                <button onClick={handleAppleSignIn} className="flex items-center gap-2 justify-center p-3 rounded border border-slate-700 bg-transparent">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="opacity-90"><path d="M16.365 1.43c.002.157.007.314.016.47-.01.007-.02.014-.03.021C16.311 6.02 19.77 7.78 19.77 11.08c0 1.63-.64 3.08-1.7 4.05-.86.81-2.02 1.25-3.3 1.25-.75 0-1.49-.16-2.18-.48-.07-.03-.13-.06-.2-.09-1.18.29-2.47.25-3.9-.26 1.74-.45 3.05-1.56 3.87-2.92.25-.45.47-.92.61-1.42.25-.36.61-.65 1.03-.77.14-.04.28-.06.43-.06.48 0 .92.22 1.25.58.22.13.41.29.58.47.24-.13.47-.27.69-.41.93-.58 1.48-1.56 1.48-2.63 0-.9-.44-1.69-1.11-2.17-.12-.09-.25-.17-.38-.24.23-.31.43-.66.57-1.03.33-.87.52-1.81.52-2.79 0-.05 0-.09 0-.14 0-.28-.02-.56-.06-.83C15.96 1.45 16.17 1.44 16.365 1.43z"/></svg>
+                  <span>Apple</span>
+                </button>
               </div>
             </div>
           )}

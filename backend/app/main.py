@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
     app.state.auth_service = AuthService(FirebaseVerifier())
 
     # seed fixture data into shared in-memory repos so endpoints operate
+    # NOTE: seeding in-memory fixtures is intentional here for LOCAL mode only.
     try:
         seed_from_fixture(inc_repo, ev_repo, au_repo, fixture_path="backend/fixtures/cnc04-primary.json")
     except Exception:
