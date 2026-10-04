@@ -1,5 +1,25 @@
+
+import pytest
 from fastapi.testclient import TestClient
 from backend.app.main import app
+from backend.app.auth import InvalidTokenError
+
+
+@pytest.fixture(autouse=True)
+def inject_fake_auth():
+    prev = getattr(app.state, 'auth_service', None)
+
+    class FakeAuthService:
+        def verify_token(self, id_token: str):
+            if id_token == "tok-ok":
+                return {"uid": "re1", "email": "re@example.com", "name": "Rel Eng", "roles": ["reliability_engineer"]}
+            raise InvalidTokenError("invalid")
+
+    app.state.auth_service = FakeAuthService()
+    try:
+        yield
+    finally:
+        app.state.auth_service = prev
 
 
 client = TestClient(app)
@@ -45,7 +65,7 @@ def test_challenge_endpoint():
 
 
 def test_stream_sse():
-    r = client.get("/api/incidents/INC-2026-0827/stream")
+    r = client.get("/api/incidents/INC-2026-0827/stream", headers={"Authorization": "Bearer tok-ok"})
     assert r.status_code == 200
     # content-type should be event-stream
     assert r.headers.get("content-type", "").startswith("text/event-stream")

@@ -133,6 +133,25 @@ export interface SimulationOptionResult {
   calculation_trace: string[];
 }
 
+// Server-Sent Events (SSE) - lightweight event contracts used by the frontend
+export type SseEventName =
+  | 'retrieving_telemetry'
+  | 'checking_maintenance'
+  | 'generating_hypotheses'
+  | 'critiquing_leader'
+  | 'running_simulation'
+  | 'awaiting_approval';
+
+export interface SseEventPayload {
+  step?: number;
+  [key: string]: any;
+}
+
+export interface SseNamedEvent {
+  name: SseEventName;
+  payload?: SseEventPayload;
+}
+
 export interface Recommendation {
   recommendation_id: string;
   next_step: string;

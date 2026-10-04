@@ -61,6 +61,10 @@ PY)
         run: |
           npm ci
 
+      - name: Run frontend tests
+        run: |
+          npm test
+
       - name: Lint
         run: |
           npm run lint

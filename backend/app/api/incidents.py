@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from typing import Dict, Any
 import json
 import time
+import os
 
 from ..repositories.fixtures import get_primary_scenario
 from ..seed.seed_from_fixture import seed_from_fixture
@@ -52,10 +53,39 @@ def _sse_event(name: str, payload: Dict[str, Any]):
 
 
 @router.get("/incidents/{incident_id}/stream")
-def stream_incident(incident_id: str):
+def stream_incident(incident_id: str, request: Request):
     data = get_primary_scenario()
     if not data or data.get("incident_id") != incident_id:
         raise HTTPException(status_code=404, detail="incident not found")
+
+    # By default, the stream requires a valid Firebase ID token in
+    # Authorization: Bearer <token>. A demo/anonymous fallback is allowed only
+    # when the environment variable FACTORY_WHY_ALLOW_ANONYMOUS_DEMO is set to
+    # a truthy value (1/true/yes). Default is false.
+    allow_anonymous = str(os.environ.get("FACTORY_WHY_ALLOW_ANONYMOUS_DEMO", "false")).lower() in ("1", "true", "yes")
+
+    # Validate Authorization header once at the start of the request. Do not
+    # duplicate Firebase verification logic here — use the injected
+    # application-scoped AuthService.
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        if not allow_anonymous:
+            raise HTTPException(status_code=401, detail="Missing Authorization header")
+        # else: anonymous/demo mode allowed; proceed without verifying token
+
+    user = None
+    if auth_header and auth_header.startswith("Bearer "):
+        id_token = auth_header.split(" ", 1)[1].strip()
+        auth_svc = get_auth_service(request)
+        try:
+            user = auth_svc.verify_token(id_token)
+        except ExpiredTokenError:
+            raise HTTPException(status_code=401, detail="Expired token")
+        except InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        except Exception:
+            # Generic verification failure — treat as authentication failure
+            raise HTTPException(status_code=401, detail="Token verification failed")
 
     def event_stream():
         steps = [

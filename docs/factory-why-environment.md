@@ -1015,6 +1015,54 @@ Node 24 is the standardized JavaScript runtime for this prototype environment.
 
 ---
 
+# 63. Frontend Authentication & API Environment
+
+The frontend integrates with Firebase Authentication (Google Sign-In) for
+interactive user identity. Important runtime environment variables and client
+contracts:
+
+- VITE_FIREBASE_API_KEY — Firebase web API key (public, safe to ship in
+  frontend code). Use the Firebase Web App configuration values prefixed with
+  `VITE_` so Vite exposes them to the browser.
+- VITE_FIREBASE_AUTH_DOMAIN — Firebase auth domain (e.g. `project.firebaseapp.com`).
+- VITE_FIREBASE_PROJECT_ID — Firebase project id.
+- VITE_FIREBASE_STORAGE_BUCKET, VITE_FIREBASE_MESSAGING_SENDER_ID, VITE_FIREBASE_APP_ID,
+  VITE_FIREBASE_MEASUREMENT_ID — optional Firebase web app values.
+- VITE_API_BASE_URL — Base URL for backend API requests. May be empty for
+  same-origin deployments. When present it is prepended to `/api/...` calls.
+
+Notes:
+
+- Firebase web values are public configuration (they are not secrets). Do NOT
+  place server-side service-account keys or private credentials in frontend
+  environment files.
+- The frontend obtains Firebase ID tokens via the AuthProvider. Tokens are
+  never persisted to localStorage/sessionStorage by the app and are not logged.
+
+# 64. REST / SSE Authentication Semantics
+
+The application enforces authentication and authorization boundaries between
+the frontend and backend. Documented behaviors:
+
+- REST endpoints that perform state changes (for example `/incidents/{id}/approve`,
+  `/incidents/{id}/actions`) require an `Authorization: Bearer <ID_TOKEN>` header.
+  Missing or malformed tokens produce HTTP 401. Valid tokens lacking the
+  required role produce HTTP 403.
+- SSE endpoint `/incidents/{id}/stream` has identical token semantics: missing/
+  invalid/expired token -> 401; valid token -> stream allowed.
+- A demo/anonymous fallback for the SSE endpoint is only allowed when
+  `FACTORY_WHY_ALLOW_ANONYMOUS_DEMO` is set to a truthy value (`1`, `true`, `yes`).
+  The default is to require authentication for the live stream.
+- The server uses the verified token `uid` as the authoritative actor identity
+  for audit records. Do not trust client-supplied actor data.
+
+Testing and local development:
+
+- The backend provides an injectable AuthService so tests can mock token
+  verification without network calls or service-account JSON files.
+- Do not create or commit service-account JSON files into the repository for
+  tests; mock the verification boundary instead.
+
 # 30. Python Environment
 
 The development target is:

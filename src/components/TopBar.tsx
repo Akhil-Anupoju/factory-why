@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../auth/AuthContext';
 import { 
   ShieldAlert, 
   RotateCcw, 
@@ -34,6 +35,11 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenDemoGuide,
   isDemoGuideOpen,
 }) => {
+  // minimal user identity display will be injected by parent via DOM or
+  // a future prop; for now we will render an optional area reserved for
+  // authenticated user identity and sign-out control managed by App.
+  // App will set these via a small DOM-managed handler to avoid changing
+  // many component props right now.
   const getStatusBadge = () => {
     if (currentCase.outcome) {
       return (
@@ -66,6 +72,8 @@ export const TopBar: React.FC<TopBarProps> = ({
       </span>
     );
   };
+
+  const auth = useAuth();
 
   return (
     <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 px-3 sm:px-5 py-2.5 shadow-sm">
@@ -185,6 +193,20 @@ export const TopBar: React.FC<TopBarProps> = ({
             <RotateCcw className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden xl:inline font-mono text-[11px]">Reset</span>
           </button>
+
+          {/* Auth identity + sign-out */}
+          {auth.isAuthenticated && (
+            <div className="flex items-center gap-2 ml-2">
+              <div className="text-xs text-slate-300 hidden sm:block">{auth.user?.displayName || auth.user?.email}</div>
+              <button
+                onClick={() => auth.signOut()}
+                className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
+                aria-label="Sign out"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
 
         </div>
       </div>

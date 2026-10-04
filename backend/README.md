@@ -84,18 +84,40 @@ Safety and constraints
   are explicitly out of scope for Phase 2.
 
 Authentication (Phase 4C)
- - Approval and Action endpoints require Firebase ID tokens passed in the
-   `Authorization: Bearer <ID_TOKEN>` header. Tokens are verified server-side
-   by the application using an AuthService that encapsulates the verification
-   boundary.
- - Actor identity is authoritative only when derived from the verified token
-   (the server uses the token uid for audit records). Do NOT rely on any
-   `actor` field supplied in the request body.
- - For local tests the AuthService is replaceable (injected into
-   `app.state.auth_service`) and tests use a fake AuthService so no Firebase
-   credentials or network calls are required.
- - Production verification uses Application Default Credentials / runtime
-   identity. Do NOT commit service account JSON keys to source.
+  - Approval and Action endpoints require Firebase ID tokens passed in the
+    `Authorization: Bearer <ID_TOKEN>` header. Tokens are verified server-side
+    by the application using an AuthService that encapsulates the verification
+    boundary.
+  - Actor identity is authoritative only when derived from the verified token
+    (the server uses the token uid for audit records). Do NOT rely on any
+    `actor` field supplied in the request body.
+  - For local tests the AuthService is replaceable (injected into
+    `app.state.auth_service`) and tests use a fake AuthService so no Firebase
+    credentials or network calls are required.
+  - Production verification uses Application Default Credentials / runtime
+    identity. Do NOT commit service account JSON keys to source.
+
+  Additional notes (REST / SSE contract):
+
+  - REST endpoints that modify state (for example: `/incidents/{id}/approve`,
+    `/incidents/{id}/actions`) expect an `Authorization: Bearer <ID_TOKEN>`
+    header. Missing or malformed tokens result in HTTP 401. Tokens that are
+    valid but do not grant the required role will result in HTTP 403.
+
+  - The SSE endpoint `/incidents/{id}/stream` enforces the same token
+    semantics: missing/invalid/expired token -> 401, valid token -> stream
+    allowed. A demo/anonymous fallback for the SSE endpoint is available only
+    when the environment variable `FACTORY_WHY_ALLOW_ANONYMOUS_DEMO` is set to
+    a truthy value (`1`, `true`, or `yes`). The default behavior is to require
+    authentication for the live stream.
+
+  - Authorization and identity are determined solely from the verified token
+    on the server (the server trusts the token's `uid` as the canonical actor
+    identifier for audit records). Do not accept or persist any client-supplied
+    actor identity in request bodies.
+
+  - For tests and local development, the AuthService is injectable so tests
+    can mock verification without network calls or service-account keys.
 
  If you'd like, I can prepare a final commit for Phase 2 that includes the
  tool implementations, tests, README updates and a minimal CI workflow.

@@ -25,6 +25,8 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
 }) => {
   const [comment, setComment] = useState('');
   const isApproved = approval.decision === 'APPROVED';
+  // show a subtle hint when SSE indicates awaiting approval
+  // the parent App will set approval.decision appropriately; keep UI unchanged here
 
   return (
     <div id="approval" className="bg-slate-900 border border-slate-800 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">

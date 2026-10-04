@@ -22,6 +22,11 @@ import {
   calculateDeterministicSimulation, 
   DEFAULT_SIMULATION_PARAMS 
 } from './data/mockScenarios';
+import { fetchIncident } from './api/incidentApi';
+import { ApiError } from './api/apiClient';
+import { useAuth } from './auth/AuthContext';
+import LoginPage from './pages/LoginPage';
+import createInvestigationStream from './api/streamApi';
 import { 
   InvestigationCase, 
   EvidenceItem, 
@@ -38,13 +43,23 @@ import {
   ShieldCheck, 
   Award, 
   Terminal,
-  ChevronRight
+  ChevronRight,
+  Loader2,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 
 export default function App() {
   // Active Scenario & Case State
   const [activeScenarioId, setActiveScenarioId] = useState<string>('CNC-04');
   const [currentCase, setCurrentCase] = useState<InvestigationCase>(PRIMARY_SCENARIO_CNC04);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [usingMock, setUsingMock] = useState<boolean>(false);
+  const [streamState, setStreamState] = useState<'idle' | 'connecting' | 'running' | 'awaiting_approval' | 'completed' | 'error'>('idle');
+  const auth = useAuth();
+
+  // TopBar now consumes Auth context directly — no DOM wiring required here.
 
   // UI Selection states
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
@@ -61,14 +76,128 @@ export default function App() {
   // Handler: Select Scenario
   const handleSelectScenario = (id: string) => {
     setActiveScenarioId(id);
+    // Reset error/loading first
+    setError(null);
     if (id === 'CNC-04') {
-      setCurrentCase(JSON.parse(JSON.stringify(PRIMARY_SCENARIO_CNC04)));
+      // try API first, fallback to local mock with visible error
+      loadIncident('INC-2026-0827', true);
     } else {
       setCurrentCase(JSON.parse(JSON.stringify(SCENARIO_LUBRICATION)));
     }
     setSelectedComponentId(null);
     setDemoStep(1);
   };
+
+  // Load incident from API. If fallbackToMock is true, show error but load mock on failure.
+  const loadIncident = async (incidentId: string, fallbackToMock = false) => {
+    setLoading(true);
+    setError(null);
+    setUsingMock(false);
+    try {
+      const ic = await fetchIncident(incidentId);
+      setCurrentCase(ic);
+    } catch (err: any) {
+      // visible error state — do not treat authentication/authorization errors
+      // as recoverable by falling back to demo data. Only network/back-end
+      // availability errors should allow the explicit demo fallback.
+      const msg = err?.message || String(err);
+      setError(msg);
+      // If this was an authentication or authorization failure, surface it
+      // and avoid the mock fallback so the UI can prompt for re-auth.
+      if (fallbackToMock && !(err instanceof ApiError && (err.status === 401 || err.status === 403))) {
+        // backend unavailable or other network error: fallback to demo data
+        setCurrentCase(JSON.parse(JSON.stringify(PRIMARY_SCENARIO_CNC04)));
+        setUsingMock(true);
+        // if using mock data, ensure stream is stopped
+        setStreamState('idle');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // SSE: start/stop investigation stream when using live data
+  useEffect(() => {
+    // only start stream when not using mock and no visible error
+    if (usingMock || error) {
+      return;
+    }
+
+    let controller = createInvestigationStream(currentCase.incident_id, (ev) => {
+      // map event name to UI stage
+      if (ev.name === 'awaiting_approval') {
+        setStreamState('awaiting_approval');
+        // stop stream after awaiting_approval
+        controller.stop();
+        return;
+      }
+
+      // any other named event means stream is active
+      setStreamState('running');
+
+      // integrate certain steps into UI: retrieving_telemetry -> no-op (TelemetryPanel reads data)
+      // critiquing_leader -> show CriticSection highlight (keep simple)
+      // For now we store minimal audit-like event into audit_trail so UI shows progression
+      const step = ev.payload?.step || null;
+      if (step) {
+        const auditEvent = {
+          event_id: `AUD-SSE-${Date.now()}`,
+          step_number: currentCase.audit_trail.length + 1,
+          timestamp: new Date().toISOString(),
+          agent_role: 'Root Orchestrator' as const,
+          tool_call: `sse:${ev.name}`,
+          summary: `Pipeline step ${ev.name}`,
+          request_payload: { step: step },
+          response_payload: {},
+          status: 'SUCCESS' as const,
+        };
+        setCurrentCase(prev => ({ ...prev, audit_trail: [...prev.audit_trail, auditEvent] }));
+      }
+    }, (err) => {
+      // handle authentication/authorization failures specially; do not
+      // fallback to demo data when these occur.
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setError('Authentication required to view live incident data. Please sign in again.');
+          // sign out to force re-auth flow
+          auth.signOut();
+          return;
+        }
+        if (err.status === 403) {
+          setError('You are not authorized to view this incident.');
+          return;
+        }
+      }
+      // Avoid logging entire error objects which might contain sensitive
+      // headers or token fragments in some environments. Log a short message
+      // and preserve the object only for local developer inspection.
+      try {
+        // eslint-disable-next-line no-console
+        console.warn('SSE error (see devtools for details)', typeof err === 'string' ? err : (err && (err as any).message) || String(err));
+      } catch (e) {
+        // ignore logging failures
+      }
+      setStreamState('error');
+    });
+
+    setStreamState('connecting');
+    // start is now possibly async; call and ignore promise for now
+    controller.start().catch((e) => {
+      try {
+        // keep message short to avoid leaking sensitive details
+        // eslint-disable-next-line no-console
+        console.warn('Stream failed to start:', (e as any)?.message || String(e));
+      } catch (err) {
+        // ignore logging errors
+      }
+      setStreamState('error');
+    });
+
+    return () => {
+      controller.stop();
+      setStreamState('idle');
+    };
+  }, [currentCase.incident_id, usingMock, error]);
 
   // Handler: Reset Case
   const handleResetCase = () => {
@@ -234,6 +363,12 @@ export default function App() {
 
   // Auto-play timer for demo script
   useEffect(() => {
+    // On first mount, attempt to load primary scenario from API with fallback to mock.
+    // Defer loading until auth resolved. If unauthenticated, App will render LoginPage.
+    if (!auth.loading && auth.isAuthenticated) {
+      loadIncident('INC-2026-0827', true);
+    }
+
     let timer: NodeJS.Timeout;
     if (isDemoPlaying) {
       timer = setTimeout(() => {
@@ -246,6 +381,21 @@ export default function App() {
     }
     return () => clearTimeout(timer);
   }, [isDemoPlaying, demoStep]);
+
+  // Gate: auth-loading -> loading banner, unauthenticated -> LoginPage, authenticated -> app
+  if (auth.loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
+        <div role="status" className="text-center">
+          <div className="text-lg font-bold">Checking authentication…</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!auth.isAuthenticated) {
+    return <LoginPage />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200 overflow-x-hidden">
@@ -272,6 +422,40 @@ export default function App() {
           onClose={() => setIsDemoGuideOpen(false)}
         />
       )}
+
+      {/* Loading / Error / Mock Fallback Banner - non-modal, accessible */}
+      <div aria-live="polite" className="max-w-[1720px] mx-auto px-3 sm:px-5 py-2">
+        {loading && (
+          <div className="flex items-center gap-3 bg-slate-900/80 border border-slate-800 rounded p-2 text-slate-200" role="status">
+            <Loader2 className="animate-spin w-5 h-5 text-cyan-400" aria-hidden />
+            <div>
+              <div className="font-semibold">Loading live incident</div>
+              <div className="text-xs text-slate-400">Fetching latest incident data from backend…</div>
+            </div>
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="flex items-start gap-3 bg-amber-900/80 border border-amber-700 rounded p-3 text-amber-50" role="alert">
+            <AlertTriangle className="w-5 h-5 text-amber-200 mt-0.5" aria-hidden />
+            <div>
+              <div className="font-semibold">Live data unavailable</div>
+              <div className="text-sm text-amber-100">Could not load the live incident data from the backend. The application is using a local demo scenario instead.</div>
+              <div className="text-xs text-amber-100 mt-1">If you expected live data, check network connectivity or backend health.</div>
+            </div>
+          </div>
+        )}
+
+        {!loading && usingMock && !error && (
+          <div className="flex items-center gap-3 bg-slate-800/60 border border-slate-700 rounded p-2 text-slate-200" role="status">
+            <Info className="w-5 h-5 text-slate-300" aria-hidden />
+            <div className="text-sm">
+              <span className="font-medium">Demo data</span>
+              <span className="text-slate-400"> — Using the local scenario for offline/demo purposes.</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Investigation Pipeline Ribbon / Stage Stepper - Reflows smoothly on all widths */}
       <nav 

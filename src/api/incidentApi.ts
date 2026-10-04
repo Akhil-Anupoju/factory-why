@@ -1,0 +1,60 @@
+import { InvestigationCase } from '../types';
+import { authFetch, ApiError as ClientApiError } from './apiClient';
+
+class ApiError extends Error {
+  status: number | null;
+  constructor(message: string, status: number | null = null) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+function getApiBase(): string {
+  // Vite exposes env vars prefixed with VITE_. Use same-origin as default.
+  // Consumers must set VITE_API_BASE_URL in their environment when needed.
+  // Do not embed credentials here.
+  // Leaving empty string will cause fetch to use same origin.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const v = (import.meta as any).env?.VITE_API_BASE_URL;
+  return v || '';
+}
+
+export async function fetchIncident(incidentId: string): Promise<InvestigationCase> {
+  const base = getApiBase().replace(/\/$/, '');
+  const path = `${base}/api/incidents/${encodeURIComponent(incidentId)}`.replace('//api', '/api');
+
+  let res: Response;
+  try {
+    res = await authFetch(path, { method: 'GET' });
+  } catch (err: any) {
+    // network error
+    if (err instanceof ClientApiError) throw err;
+    throw new ClientApiError(`Network error while fetching incident: ${err?.message || err}`, null);
+  }
+
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new ApiError(`Incident not found: ${incidentId}`, 404);
+    }
+    const text = await res.text();
+    throw new ApiError(`API error: ${res.status} ${res.statusText} - ${text}`, res.status);
+  }
+
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch (err: any) {
+    throw new ApiError(`Failed to parse JSON response: ${err?.message || err}`, res.status);
+  }
+
+  // Basic runtime validation: ensure payload has incident_id
+  const obj = payload as Record<string, any>;
+  if (!obj || typeof obj.incident_id !== 'string') {
+    throw new ApiError('Malformed incident payload: missing incident_id', res.status);
+  }
+
+  return obj as InvestigationCase;
+}
+
+export { ApiError };
