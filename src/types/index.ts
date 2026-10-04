@@ -171,6 +171,7 @@ export type ApprovalDecision = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REQUEST_MO
 export interface ApprovalRecord {
   approval_id: string;
   incident_id: string;
+  recommendation_id?: string;
   decision: ApprovalDecision;
   engineer_name: string;
   engineer_role: string;

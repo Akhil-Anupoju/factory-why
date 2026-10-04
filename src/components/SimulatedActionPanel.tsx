@@ -27,6 +27,7 @@ export const SimulatedActionPanel: React.FC<SimulatedActionPanelProps> = ({
   isOutcomeRevealed,
 }) => {
   const isApproved = approval.decision === 'APPROVED';
+  const [running, setRunning] = React.useState(false);
 
   if (!isApproved) {
     return (
@@ -156,11 +157,21 @@ export const SimulatedActionPanel: React.FC<SimulatedActionPanelProps> = ({
       {!isOutcomeRevealed && (
         <div className="flex flex-wrap justify-end pt-1">
           <button
-            onClick={onExecuteAction}
-            className="flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white font-bold text-xs font-mono rounded shadow-lg shadow-cyan-950/60 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400 max-w-full"
+            onClick={async () => {
+              if (running) return;
+              try {
+                setRunning(true);
+                await onExecuteAction();
+              } finally {
+                setRunning(false);
+              }
+            }}
+            disabled={running}
+            aria-disabled={running}
+            className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 ${running ? 'opacity-60 cursor-not-allowed' : 'bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500'} text-white font-bold text-xs font-mono rounded shadow-lg shadow-cyan-950/60 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400 max-w-full`}
           >
             <Play className="w-4 h-4 fill-white shrink-0" />
-            <span className="truncate">Complete Physical Inspection & Reveal Ground Truth</span>
+            <span className="truncate">{running ? 'Executing…' : 'Complete Physical Inspection & Reveal Ground Truth'}</span>
           </button>
         </div>
       )}

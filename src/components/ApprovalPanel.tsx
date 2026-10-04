@@ -24,6 +24,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
   onChallengeClick,
 }) => {
   const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState(false);
   const isApproved = approval.decision === 'APPROVED';
   // show a subtle hint when SSE indicates awaiting approval
   // the parent App will set approval.decision appropriately; keep UI unchanged here
@@ -90,12 +91,22 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={() => onDecision('PENDING', '')}
-            className="text-xs text-slate-400 hover:text-white underline font-mono shrink-0 self-start sm:self-auto"
-          >
-            Revoke / Re-evaluate
-          </button>
+            <button
+              onClick={async () => {
+                if (busy) return;
+                try {
+                  setBusy(true);
+                  await onDecision('PENDING', 'Re-evaluate requested');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+              aria-disabled={busy}
+              className={`text-xs ${busy ? 'opacity-60 cursor-not-allowed' : 'hover:text-white underline'} text-slate-400 font-mono shrink-0 self-start sm:self-auto`}
+            >
+              {busy ? 'Processing…' : 'Revoke / Re-evaluate'}
+            </button>
         </div>
       ) : (
         <div className="space-y-3 w-full min-w-0">
@@ -117,41 +128,79 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
           <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-2 pt-1 w-full min-w-0">
             {/* 1. APPROVE */}
             <button
-              onClick={() => onDecision('APPROVED', comment || 'Approved for immediate laser runout diagnostic inspection.')}
-              className="px-2.5 sm:px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/60"
+              onClick={async () => {
+                if (busy) return;
+                try {
+                  setBusy(true);
+                  await onDecision('APPROVED', comment || 'Approved for immediate laser runout diagnostic inspection.');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+              aria-disabled={busy}
+              className={`px-2.5 sm:px-3 py-2 ${busy ? 'opacity-60 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'} text-white font-bold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/60`}
             >
               <Check className="w-4 h-4 shrink-0" />
-              <span>Approve Action</span>
+              <span>{busy ? 'Approving…' : 'Approve Action'}</span>
             </button>
 
             {/* 2. REJECT */}
             <button
-              onClick={() => onDecision('REJECTED', comment || 'Rejected by Lead Reliability Engineer.')}
-              className="px-2.5 sm:px-3 py-2 bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700/50 font-semibold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5"
+              onClick={async () => {
+                if (busy) return;
+                try {
+                  setBusy(true);
+                  await onDecision('REJECTED', comment || 'Rejected by Lead Reliability Engineer.');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+              aria-disabled={busy}
+              className={`px-2.5 sm:px-3 py-2 ${busy ? 'opacity-60 cursor-not-allowed' : 'bg-rose-900/60 hover:bg-rose-800'} text-rose-200 border border-rose-700/50 font-semibold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5`}
             >
               <X className="w-4 h-4 shrink-0" />
-              <span>Reject</span>
+              <span>{busy ? 'Rejecting…' : 'Reject'}</span>
             </button>
 
             {/* 3. REQUEST MORE EVIDENCE */}
             <button
-              onClick={() => onDecision('REQUEST_MORE_EVIDENCE', comment || 'Requested high-resolution vibration spectrum FFT.')}
-              className="px-2.5 sm:px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5"
+              onClick={async () => {
+                if (busy) return;
+                try {
+                  setBusy(true);
+                  await onDecision('REQUEST_MORE_EVIDENCE', comment || 'Requested high-resolution vibration spectrum FFT.');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+              aria-disabled={busy}
+              className={`px-2.5 sm:px-3 py-2 ${busy ? 'opacity-60 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-700'} text-slate-200 border border-slate-700 font-semibold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5`}
             >
               <HelpCircle className="w-4 h-4 text-cyan-400 shrink-0" />
-              <span>Request Evidence</span>
+              <span>{busy ? 'Requesting…' : 'Request Evidence'}</span>
             </button>
 
             {/* 4. CHALLENGE */}
             <button
-              onClick={() => {
-                onDecision('CHALLENGE', 'Challenging leading hypothesis with critic agent.');
-                onChallengeClick();
+              onClick={async () => {
+                if (busy) return;
+                try {
+                  setBusy(true);
+                  await onDecision('CHALLENGE', 'Challenging leading hypothesis with critic agent.');
+                  onChallengeClick();
+                } finally {
+                  setBusy(false);
+                }
               }}
-              className="px-2.5 sm:px-3 py-2 bg-amber-900/50 hover:bg-amber-800 text-amber-200 border border-amber-700/50 font-semibold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5"
+              disabled={busy}
+              aria-disabled={busy}
+              className={`px-2.5 sm:px-3 py-2 ${busy ? 'opacity-60 cursor-not-allowed' : 'bg-amber-900/50 hover:bg-amber-800'} text-amber-200 border border-amber-700/50 font-semibold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5`}
             >
               <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Challenge AI</span>
+              <span>{busy ? 'Challenging…' : 'Challenge AI'}</span>
             </button>
           </div>
         </div>

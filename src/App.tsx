@@ -22,7 +22,7 @@ import {
   calculateDeterministicSimulation, 
   DEFAULT_SIMULATION_PARAMS 
 } from './data/mockScenarios';
-import { fetchIncident } from './api/incidentApi';
+import { fetchIncident, postApproval, postAction, fetchOutcome } from './api/incidentApi';
 import { ApiError } from './api/apiClient';
 import { useAuth } from './auth/AuthContext';
 import LoginPage from './pages/LoginPage';
@@ -215,91 +215,142 @@ export default function App() {
   };
 
   // Handler: Human Approval Decision
-  const handleApprovalDecision = (decision: ApprovalDecision, comment: string) => {
+  const handleApprovalDecision = async (decision: ApprovalDecision, comment: string) => {
     const timestamp = new Date().toISOString();
-    
-    if (decision === 'APPROVED') {
-      const generatedAction: ActionRecord = {
-        action_id: `ACT-${Date.now()}`,
-        incident_id: currentCase.incident_id,
-        approval_id: `APP-APPROVED-${Date.now()}`,
-        task_type: 'NON_DESTRUCTIVE_LASER_RUNOUT_INSPECTION',
-        task_number: 'TASK-2026-0922-01',
-        assigned_technician: 'D. Miller (Shift B Lead Tech)',
-        required_tools: [
-          'Optalign Smart RS5 Laser Alignment System',
-          'Mitutoyo 0.001mm Magnetic Dial Indicator',
-          'Stainless Precision Shim Pack (0.02 - 0.10 mm)',
-          'Snap-On Digital Torque Wrench (Calibrated 85 Nm)'
-        ],
-        status: 'DISPATCHED',
-        dispatched_at: timestamp,
-        target_component: 'Bearing-B04 & Coupling',
-        procedure_checklist: [
-          'Perform electrical lockout/tagout (LOTO) on CNC-04 main disconnect.',
-          'Mount laser sensor transmitter and prism on spindle shaft coupling.',
-          'Clock radial and axial angular runout across 360° rotation.',
-          'Adjust housing mounting shims and retorque to OEM 85 Nm spec.'
-        ]
-      };
 
-      const approvalAuditEvent = {
-        event_id: `AUD-APP-${Date.now()}`,
-        step_number: currentCase.audit_trail.length + 1,
-        timestamp,
-        agent_role: 'Human Engineer' as const,
-        tool_call: 'approve_recommendation',
-        summary: `Engineer Akhil Anupoju formally approved inspection action. Note: "${comment}"`,
-        request_payload: { decision: 'APPROVED', comment, authenticated_user: 'Akhil Anupoju' },
-        response_payload: { approval_status: 'AUTHORIZED', authorized_at: timestamp },
-        status: 'SUCCESS' as const
-      };
+    // Local demo behavior preserved when usingMock === true
+    if (usingMock) {
+      if (decision === 'APPROVED') {
+        // preserve existing demo flow (client-side action creation)
+        const generatedAction: ActionRecord = {
+          action_id: `ACT-${Date.now()}`,
+          incident_id: currentCase.incident_id,
+          approval_id: `APP-APPROVED-${Date.now()}`,
+          task_type: 'NON_DESTRUCTIVE_LASER_RUNOUT_INSPECTION',
+          task_number: 'TASK-2026-0922-01',
+          assigned_technician: 'D. Miller (Shift B Lead Tech)',
+          required_tools: [
+            'Optalign Smart RS5 Laser Alignment System',
+            'Mitutoyo 0.001mm Magnetic Dial Indicator',
+            'Stainless Precision Shim Pack (0.02 - 0.10 mm)',
+            'Snap-On Digital Torque Wrench (Calibrated 85 Nm)'
+          ],
+          status: 'DISPATCHED',
+          dispatched_at: timestamp,
+          target_component: 'Bearing-B04 & Coupling',
+          procedure_checklist: [
+            'Perform electrical lockout/tagout (LOTO) on CNC-04 main disconnect.',
+            'Mount laser sensor transmitter and prism on spindle shaft coupling.',
+            'Clock radial and axial angular runout across 360° rotation.',
+            'Adjust housing mounting shims and retorque to OEM 85 Nm spec.'
+          ]
+        };
 
-      const actionAuditEvent = {
-        event_id: `AUD-ACT-${Date.now()}`,
-        step_number: currentCase.audit_trail.length + 2,
-        timestamp,
-        agent_role: 'Action Agent' as const,
-        tool_call: 'create_maintenance_task',
-        summary: `Action Agent generated work order task TASK-2026-0922-01 and dispatched to maintenance cart.`,
-        request_payload: { task_number: 'TASK-2026-0922-01', target_component: 'Bearing-B04' },
-        response_payload: { status: 'DISPATCHED', assigned_tech: 'D. Miller' },
-        status: 'SUCCESS' as const
-      };
+        setCurrentCase(prev => ({
+          ...prev,
+          approval: {
+            ...prev.approval,
+            decision: 'APPROVED',
+            comment,
+            timestamp,
+            signature_hash: 'SHA256:8f4c2e91a0b3...'
+          },
+          action: generatedAction,
+          // preserve demo audit additions
+          audit_trail: [...prev.audit_trail]
+        }));
 
-      setCurrentCase(prev => ({
-        ...prev,
-        approval: {
-          ...prev.approval,
-          decision: 'APPROVED',
-          comment,
-          timestamp,
-          signature_hash: 'SHA256:8f4c2e91a0b3...'
-        },
-        action: generatedAction,
-        audit_trail: [...prev.audit_trail, approvalAuditEvent, actionAuditEvent]
-      }));
-
-      // If in demo mode, advance step
-      if (demoStep === 7) {
-        setDemoStep(8);
+        if (demoStep === 7) setDemoStep(8);
+      } else {
+        setCurrentCase(prev => ({
+          ...prev,
+          approval: {
+            ...prev.approval,
+            decision,
+            comment,
+            timestamp
+          }
+        }));
       }
-    } else {
-      setCurrentCase(prev => ({
-        ...prev,
-        approval: {
-          ...prev.approval,
-          decision,
-          comment,
-          timestamp
+
+      return;
+    }
+
+    // Live path: call server endpoints. Do not fabricate actor identity.
+    try {
+      // send recommendation from currentCase as-is
+      const serverApproval = await postApproval(currentCase.incident_id, { recommendation: currentCase.recommendation, decision, comment });
+      // on success, replace approval with server-confirmed record
+      setCurrentCase(prev => ({ ...prev, approval: serverApproval }));
+    } catch (err: any) {
+      // Map ApiError to user-facing states
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setError('Your session has expired. Please sign in again.');
+          // sign the user out to force re-auth
+          auth.signOut();
+          return;
         }
-      }));
+        if (err.status === 403) {
+          setError('You are not authorized to approve or execute this action.');
+          return;
+        }
+        if (err.status === 422) {
+          setError(err.message || 'Validation failed for the approval request.');
+          return;
+        }
+      }
+
+      // generic network / server error
+      setError('Factory WHY could not complete this request.');
     }
   };
 
   // Handler: Execute Physical Inspection to reveal Ground Truth
-  const handleExecuteAction = () => {
+  const handleExecuteAction = async () => {
     const timestamp = new Date().toISOString();
+
+    // Guard: only allow execution in live mode when approval is server-confirmed
+    if (!usingMock) {
+      const approval = currentCase.approval;
+      if (!approval || approval.decision !== 'APPROVED' || approval.incident_id !== currentCase.incident_id || approval.recommendation_id !== currentCase.recommendation.recommendation_id) {
+        setError('Action locked: approval not confirmed for this incident and recommendation.');
+        return;
+      }
+
+      try {
+        // Call server /actions endpoint
+        const resp = await postAction(currentCase.incident_id, { recommendation: currentCase.recommendation, approval_id: approval.approval_id });
+        // Update action and outcome from server-confirmed response
+        setCurrentCase(prev => ({
+          ...prev,
+          action: resp.action,
+          outcome: resp.outcome,
+          // do not fabricate audit events; the server should return authoritative audit which can be fetched separately
+        }));
+        return;
+      } catch (err: any) {
+        if (err instanceof ApiError) {
+          if (err.status === 401) {
+            setError('Your session has expired. Please sign in again.');
+            auth.signOut();
+            return;
+          }
+          if (err.status === 403) {
+            setError('You are not authorized to approve or execute this action.');
+            return;
+          }
+          if (err.status === 422) {
+            setError(err.message || 'Validation failed for the action request.');
+            return;
+          }
+        }
+        setError('Factory WHY could not complete this request.');
+        return;
+      }
+    }
+
+    // Demo/local behavior preserved when usingMock === true
     const outcome = activeScenarioId === 'CNC-04' ? GROUND_TRUTH_OUTCOME_CNC04 : null;
 
     if (outcome) {
