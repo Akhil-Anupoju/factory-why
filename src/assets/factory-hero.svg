@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="g1" x1="0" x2="1">
+      <stop offset="0%" stop-color="#22c1c3" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#1c92d2" stop-opacity="0.95" />
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="none" />
+
+  <!-- Simple factory silhouette -->
+  <g transform="translate(40,60)">
+    <rect x="0" y="160" width="520" height="120" rx="8" fill="#0f1724" opacity="0.8" />
+    <rect x="24" y="120" width="80" height="40" rx="4" fill="#0f1724" />
+    <rect x="120" y="80" width="96" height="80" rx="4" fill="#0f1724" />
+    <rect x="224" y="40" width="64" height="120" rx="4" fill="#0f1724" />
+    <rect x="304" y="96" width="72" height="64" rx="4" fill="#0f1724" />
+    <rect x="392" y="88" width="96" height="72" rx="4" fill="#0f1724" />
+
+    <!-- chimneys -->
+    <rect x="48" y="16" width="16" height="104" rx="2" fill="#0f1724" />
+    <rect x="72" y="8" width="18" height="112" rx="2" fill="#0f1724" />
+
+    <!-- windows -->
+    <g fill="#082033" opacity="0.9">
+      <rect x="28" y="132" width="18" height="18" rx="2" />
+      <rect x="54" y="132" width="18" height="18" rx="2" />
+      <rect x="80" y="132" width="18" height="18" rx="2" />
+      <rect x="152" y="96" width="18" height="18" rx="2" />
+      <rect x="178" y="96" width="18" height="18" rx="2" />
+      <rect x="204" y="96" width="18" height="18" rx="2" />
+    </g>
+
+    <!-- gear motif -->
+    <g transform="translate(420,220) scale(0.6)" fill="none" stroke="#0ea5a4" stroke-width="3" opacity="0.6">
+      <circle cx="0" cy="0" r="28" />
+      <circle cx="0" cy="0" r="10" fill="#08303a" />
+      <g stroke="#0ea5a4">
+        <path d="M-36 0 L-46 8 M36 0 L46 -8 M0 -36 L8 -46 M0 36 L-8 46" />
+      </g>
+    </g>
+
+    <!-- decorative gradient panel behind factory -->
+    <rect x="0" y="0" width="520" height="200" rx="12" fill="url(#g1)" opacity="0.06" />
+  </g>
+</svg>

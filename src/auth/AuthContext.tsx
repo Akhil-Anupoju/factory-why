@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { initFirebase } from '../firebase/init';
 import { setTokenGetter } from '../api/tokenProvider';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, User } from 'firebase/auth';
+import * as localAuth from './localAuth';
 
 interface AuthUser {
   uid: string;
@@ -14,6 +15,8 @@ interface AuthContextValue {
   loading: boolean;
   isAuthenticated: boolean;
   signIn: () => Promise<void>;
+  signInLocal: (email: string, password: string) => Promise<{ uid: string; email: string; displayName: string }>;
+  signUpLocal: (email: string, password: string, displayName?: string) => Promise<{ uid: string; email: string; displayName: string }>;
   signOut: () => Promise<void>;
   getIdToken: () => Promise<string | null>;
 }
@@ -56,9 +59,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await signInWithPopup(auth, provider);
   };
 
+  const signInLocal = async (email: string, password: string) => {
+    // Attempt to authenticate against local account store
+    const u = await localAuth.authenticateLocal(email, password);
+    // register token getter returning a fake token that encodes uid for dev/demo purposes
+    const fakeTokenGetter = async () => `local:${u.uid}`;
+    setTokenGetter(fakeTokenGetter);
+    setUser({ uid: u.uid, displayName: u.displayName, email: u.email });
+    return u;
+  };
+
+  const signUpLocal = async (email: string, password: string, displayName?: string) => {
+    const u = await localAuth.createLocalAccount(email, password, displayName || undefined as any);
+    // after creating, register token getter and set user
+    const fakeTokenGetter = async () => `local:${u.uid}`;
+    setTokenGetter(fakeTokenGetter);
+    setUser({ uid: u.uid, displayName: u.displayName, email: u.email });
+    return u;
+  };
+
   const signOut = async () => {
-    if (!auth) return;
-    await firebaseSignOut(auth);
+    if (auth) {
+      try {
+        await firebaseSignOut(auth);
+      } catch (e) {
+        // ignore
+      }
+    }
+    // clear local token getter when signing out
+    setTokenGetter(null);
+    setUser(null);
   };
 
   const getIdToken = async (): Promise<string | null> => {
@@ -76,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => setTokenGetter(null);
   }, [auth]);
 
-  const value = useMemo(() => ({ user, loading, isAuthenticated: !!user, signIn, signOut, getIdToken }), [user, loading]);
+  const value = useMemo(() => ({ user, loading, isAuthenticated: !!user, signIn, signInLocal, signUpLocal, signOut, getIdToken }), [user, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

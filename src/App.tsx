@@ -32,7 +32,8 @@ import {
   EvidenceItem, 
   ApprovalDecision, 
   SimulationParameters, 
-  ActionRecord 
+  ActionRecord,
+  OutcomeRecord,
 } from './types';
 import { 
   Activity, 
@@ -322,10 +323,23 @@ export default function App() {
         // Call server /actions endpoint
         const resp = await postAction(currentCase.incident_id, { recommendation: currentCase.recommendation, approval_id: approval.approval_id });
         // Update action and outcome from server-confirmed response
+        // Update action and outcome from server-confirmed response. If the server
+        // response lacks authoritative outcome or audit, fetch them explicitly
+        // to maintain authoritative state.
+        let finalOutcome: OutcomeRecord | null = resp.outcome || null;
+        try {
+          if (!finalOutcome) {
+            const fetched = await fetchOutcome(currentCase.incident_id);
+            finalOutcome = fetched || null;
+          }
+        } catch (e) {
+          // If fetching outcome fails, do not block updating action; surface generic error below if needed
+        }
+
         setCurrentCase(prev => ({
           ...prev,
           action: resp.action,
-          outcome: resp.outcome,
+          outcome: finalOutcome,
           // do not fabricate audit events; the server should return authoritative audit which can be fetched separately
         }));
         return;
