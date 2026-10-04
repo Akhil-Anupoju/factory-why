@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { initFirebase } from '../firebase/init';
 import { setTokenGetter } from '../api/tokenProvider';
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, User } from 'firebase/auth';
+import { GoogleAuthProvider, OAuthProvider, onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, User } from 'firebase/auth';
 import * as localAuth from './localAuth';
 
 interface AuthUser {
@@ -15,6 +15,8 @@ interface AuthContextValue {
   loading: boolean;
   isAuthenticated: boolean;
   signIn: () => Promise<void>;
+  // Optional: Apple sign-in (may be unavailable if Firebase not configured for Apple)
+  signInApple?: () => Promise<void>;
   signInLocal: (email: string, password: string) => Promise<{ uid: string; email: string; displayName: string }>;
   signUpLocal: (email: string, password: string, displayName?: string) => Promise<{ uid: string; email: string; displayName: string }>;
   signOut: () => Promise<void>;
@@ -57,6 +59,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!auth) throw new Error('Firebase not initialized');
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
+  };
+
+  const signInApple = async () => {
+    if (!auth) throw new Error('Firebase not initialized');
+    // Firebase supports OAuthProvider for Apple; ensure provider configured in Firebase console
+    const provider = new OAuthProvider('apple.com');
+    // You may need to set custom parameters depending on Apple configuration
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (e) {
+      // surface error to caller
+      throw e;
+    }
   };
 
   const signInLocal = async (email: string, password: string) => {
@@ -106,7 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => setTokenGetter(null);
   }, [auth]);
 
-  const value = useMemo(() => ({ user, loading, isAuthenticated: !!user, signIn, signInLocal, signUpLocal, signOut, getIdToken }), [user, loading]);
+  const value = useMemo(() => ({ user, loading, isAuthenticated: !!user, signIn, signInApple, signInLocal, signUpLocal, signOut, getIdToken }), [user, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

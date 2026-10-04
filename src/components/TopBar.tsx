@@ -83,8 +83,8 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           {/* Brand mark */}
           <div className="flex items-center gap-2 shrink-0">
-            <div className="w-8 h-8 rounded bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold text-sm tracking-tight shadow-sm shrink-0">
-              FW
+            <div className="w-9 h-9 shrink-0 flex items-center justify-center">
+              <img src="/assets/factorywhy-logo.png" alt="Factory WHY" className="w-full h-full object-contain rounded" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}}/>
             </div>
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2">
