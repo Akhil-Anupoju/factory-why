@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { initFirebase } from '../firebase/init';
 import { setTokenGetter } from '../api/tokenProvider';
-import { GoogleAuthProvider, OAuthProvider, onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, User } from 'firebase/auth';
+import { GoogleAuthProvider, FacebookAuthProvider, OAuthProvider, onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, User } from 'firebase/auth';
 import * as localAuth from './localAuth';
 
 interface AuthUser {
@@ -15,6 +15,8 @@ interface AuthContextValue {
   loading: boolean;
   isAuthenticated: boolean;
   signIn: () => Promise<void>;
+  // Optional: Facebook sign-in
+  signInFacebook?: () => Promise<void>;
   // Optional: Apple sign-in (may be unavailable if Firebase not configured for Apple)
   signInApple?: () => Promise<void>;
   signInLocal: (email: string, password: string) => Promise<{ uid: string; email: string; displayName: string }>;
@@ -74,6 +76,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInFacebook = async () => {
+    if (!auth) throw new Error('Firebase not initialized');
+    const provider = new FacebookAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (e) {
+      throw e;
+    }
+  };
+
   const signInLocal = async (email: string, password: string) => {
     // Attempt to authenticate against local account store
     const u = await localAuth.authenticateLocal(email, password);
@@ -121,7 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => setTokenGetter(null);
   }, [auth]);
 
-  const value = useMemo(() => ({ user, loading, isAuthenticated: !!user, signIn, signInApple, signInLocal, signUpLocal, signOut, getIdToken }), [user, loading]);
+  const value = useMemo(() => ({ user, loading, isAuthenticated: !!user, signIn, signInApple, signInFacebook, signInLocal, signUpLocal, signOut, getIdToken }), [user, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
