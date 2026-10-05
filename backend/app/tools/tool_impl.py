@@ -289,18 +289,37 @@ class AllowlistedTools:
             raise KeyError(f"inspection image not found for incident {rq.incident_id}")
 
         storage_meta = None
-        prov = candidate.provenance or ""
-        # provenance format expected: gcs://{bucket}/{path}
-        if isinstance(prov, str) and prov.startswith("gcs://"):
-            try:
-                _rest = prov[len("gcs://"):]
-                # split bucket / path
-                parts = _rest.split("/", 1)
-                if len(parts) == 2:
-                    path = parts[1]
-                    storage_meta = self.storage_repo.get_metadata(path)
-            except Exception:
-                storage_meta = None
+
+        # Prefer explicit storage_location when available. storage_location is expected
+        # to be of the form gs://<bucket>/<path> or gcs://<bucket>/<path>. When present,
+        # use the path portion to query the configured storage_repo for metadata.
+        stor_loc = getattr(candidate, "storage_location", None)
+        def _extract_path_from_gcs_uri(uri: str) -> Optional[str]:
+            if not isinstance(uri, str):
+                return None
+            for prefix in ("gs://", "gcs://"):
+                if uri.startswith(prefix):
+                    rest = uri[len(prefix) :]
+                    parts = rest.split("/", 1)
+                    if len(parts) == 2:
+                        return parts[1]
+                    return ""
+            return None
+
+        try:
+            if stor_loc:
+                p = _extract_path_from_gcs_uri(stor_loc)
+                if p is not None:
+                    storage_meta = self.storage_repo.get_metadata(p)
+
+            # Fallback: if storage_location not present or lookup failed, try provenance
+            if storage_meta is None:
+                prov = candidate.provenance or ""
+                p = _extract_path_from_gcs_uri(prov)
+                if p is not None:
+                    storage_meta = self.storage_repo.get_metadata(p)
+        except Exception:
+            storage_meta = None
 
         return InspectionImageResponse(
             evidence_id=candidate.evidence_id,

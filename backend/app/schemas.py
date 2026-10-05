@@ -63,6 +63,9 @@ class EvidenceItem(BaseModel):
     component: str
     observation: str
     provenance: str
+    # storage_location is the actual GCS location where the artifact was written by the seeder.
+    # This is additive and optional; existing fixtures without this field remain valid.
+    storage_location: Optional[str] = None
     status: str
     confidence: str
     details: Optional[str] = None

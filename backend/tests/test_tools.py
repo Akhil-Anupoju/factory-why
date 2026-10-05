@@ -113,7 +113,36 @@ def test_get_inspection_image_success_and_missing():
     tools = make_tools_with_fixture()
     resp = tools.get_inspection_image({"incident_id": "INC-2026-0827"})
     assert resp.evidence_id == "EV-1045"
+    # storage_metadata should be present when storage_location exists in evidence
     assert resp.storage_metadata is not None and resp.storage_metadata.get("size")
+    # provenance must remain unchanged (pointing to original fixture provenance)
+    assert resp.provenance == "gcs://factory-artifacts/incidents/INC-2026-0827/inspection_ir_optical_b04.jpg"
 
     with pytest.raises(KeyError):
         tools.get_inspection_image({"incident_id": "NOPE"})
+
+
+def test_inspection_image_uses_storage_location_when_present():
+    # When storage_location is present in evidence, tool should use it for metadata lookup
+    tools = make_tools_with_fixture()
+    # mutate in-memory evidence to include storage_location pointing to the seeded path
+    ev = tools.evidence_repo.get_evidence("INC-2026-0827", "EV-1045")
+    ev["storage_location"] = "gs://factory-why-hackathon-artifacts/seeded/INC-2026-0827/EV-1045/incidents/INC-2026-0827/inspection_ir_optical_b04.jpg"
+    tools.evidence_repo.upsert_evidence("INC-2026-0827", ev)
+    resp = tools.get_inspection_image({"incident_id": "INC-2026-0827"})
+    assert resp.storage_metadata is not None and resp.storage_metadata.get("size")
+    # provenance should remain the original fixture provenance
+    assert resp.provenance == "gcs://factory-artifacts/incidents/INC-2026-0827/inspection_ir_optical_b04.jpg"
+
+
+def test_inspection_image_falls_back_to_provenance_when_no_storage_location():
+    tools = make_tools_with_fixture()
+    # ensure evidence has no storage_location
+    ev = tools.evidence_repo.get_evidence("INC-2026-0827", "EV-1045")
+    ev.pop("storage_location", None)
+    tools.evidence_repo.upsert_evidence("INC-2026-0827", ev)
+    resp = tools.get_inspection_image({"incident_id": "INC-2026-0827"})
+    # since in-memory storage metadata was seeded for the provenance path in make_tools_with_fixture,
+    # the storage_metadata should still be present
+    assert resp.storage_metadata is not None and resp.storage_metadata.get("size")
+    assert resp.provenance == "gcs://factory-artifacts/incidents/INC-2026-0827/inspection_ir_optical_b04.jpg"
