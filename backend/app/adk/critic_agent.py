@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
+import inspect
 from pydantic import BaseModel, ValidationError
 
 from google.adk.agents.llm_agent import LlmAgent
@@ -123,9 +124,19 @@ class CriticAgent:
         evidence_ids = [e.evidence_id for e in state.evidence]
 
         if model_runner_override:
-            # Ensure the model runner knows this is the critic role so it
-            # prepares the correct prompt/template.
-            raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle, agent_role="critic_agent")
+            # Be tolerant of model_runner_override signature variations
+            # (some test runners use a simple positional-only callable).
+            try:
+                sig = inspect.signature(model_runner_override)
+                if "agent_role" in sig.parameters:
+                    raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle, agent_role="critic_agent")
+                else:
+                    raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle)
+            except (TypeError, ValueError):
+                try:
+                    raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle, agent_role="critic_agent")
+                except TypeError:
+                    raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle)
         else:
             raise RuntimeError("Live Critic model invocation disabled in tests; provide model_runner_override")
 

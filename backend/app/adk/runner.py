@@ -91,10 +91,12 @@ class ADKRunner:
                     user_msg = prompts.render_why_prompt(incident_ctx, evidence_list)
                     prompt_hash = prompts.compute_prompt_hash(prompts.WHY_PROMPT_TEMPLATE)
                     schema_version = prompts.WHY_SCHEMA_VERSION
+                    prompt_template_id = "WHY_PROMPT_TEMPLATE"
                 else:
                     user_msg = prompts.render_critic_prompt(incident_ctx, evidence_list)
                     prompt_hash = prompts.compute_prompt_hash(prompts.CRITIC_PROMPT_TEMPLATE)
                     schema_version = prompts.CRITIC_SCHEMA_VERSION
+                    prompt_template_id = "CRITIC_PROMPT_TEMPLATE"
 
                 # record minimal audit metadata for prompt used
                 try:
@@ -106,7 +108,12 @@ class ADKRunner:
                             agent_role="adk_runner",
                             tool_call="prepare_prompt",
                             summary=f"Prepared prompt for {agent_role}",
-                            request_payload={"prompt_hash": prompt_hash, "schema": schema_version},
+                            request_payload={
+                                "agent_role": agent_role,
+                                "prompt_template": prompt_template_id,
+                                "prompt_hash": prompt_hash,
+                                "schema": schema_version,
+                            },
                             response_payload={},
                             status="READY",
                         )
@@ -130,7 +137,7 @@ class ADKRunner:
                             agent_role="adk_runner",
                             tool_call="prepare_prompt_meta",
                             summary=f"Prompt meta for {agent_role}",
-                            request_payload={"prompt_hash": prompt_hash},
+                            request_payload={"agent_role": agent_role, "prompt_template": prompt_template_id, "prompt_hash": prompt_hash},
                             response_payload=meta,
                             status="META",
                         )
@@ -187,6 +194,8 @@ class ADKRunner:
                     "provider": self.model_config.provider,
                     "model": self.model_config.model_name,
                     "prompt_hash": prompt_hash,
+                    "agent_role": agent_role,
+                    "prompt_template": prompt_template_id,
                 }
 
                 # Normalize raw_out into a text candidate where possible. Some
@@ -308,19 +317,26 @@ class ADKRunner:
                     top_level_type = type(parsed).__name__ if parsed is not None else None
                     top_level_keys = list(parsed.keys())[:20] if isinstance(parsed, dict) else None
                     list_length = len(parsed) if isinstance(parsed, list) else None
+                    # Prefer the extracted textual candidate for snippet
                     snippet = None
-                    if isinstance(raw_out, str):
+                    if isinstance(extracted_text, str) and extracted_text:
+                        snippet_raw = extracted_text[:200]
+                        for forbidden in ("Authorization", "authorization", "token", "private_key", "secret"):
+                            snippet_raw = snippet_raw.replace(forbidden, "[REDACTED]")
+                        snippet = snippet_raw
+                    elif isinstance(raw_out, str):
                         snippet_raw = raw_out[:200]
-                        # redact obvious sensitive tokens
                         for forbidden in ("Authorization", "authorization", "token", "private_key", "secret"):
                             snippet_raw = snippet_raw.replace(forbidden, "[REDACTED]")
                         snippet = snippet_raw
 
                     model_diag = {
+                        "agent_role": agent_role,
+                        "prompt_template": prompt_template_id,
                         "response_type": type(raw_out).__name__,
-                        "has_text": isinstance(raw_out, str),
-                        "text_length": len(raw_out) if isinstance(raw_out, str) else None,
-                        "json_parse_attempted": isinstance(raw_out, str),
+                        "has_text": isinstance(extracted_text, str),
+                        "text_length": len(extracted_text) if isinstance(extracted_text, str) else None,
+                        "json_parse_attempted": isinstance(extracted_text, str),
                         "json_parse_succeeded": json_parse_succeeded,
                         "top_level_type": top_level_type,
                         "top_level_keys": top_level_keys,
@@ -356,7 +372,7 @@ class ADKRunner:
                             agent_role="adk_runner",
                             tool_call="model_call",
                             summary="Model returned response (validation pending)",
-                            request_payload={"prompt_hash": prompt_hash, "schema": schema_version},
+                            request_payload={"agent_role": agent_role, "prompt_template": prompt_template_id, "prompt_hash": prompt_hash, "schema": schema_version},
                             response_payload={"validation_status": "RECEIVED"},
                             status="RECEIVED",
                         )

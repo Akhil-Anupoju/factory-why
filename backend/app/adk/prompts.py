@@ -55,19 +55,33 @@ As above, list evidence items: evidence_id, source, timestamp, asset, component,
 REQUIRED OUTPUT SCHEMA:
 Return a JSON object matching the CriticOutputModel with keys: critic_id, target_hypothesis_id, contradictions (list of {point, conflicting_evidence_ids, rationale}), ignored_evidence_ids (list), falsification_check (string), most_discriminating_missing_evidence (string), confidence_revision (float|optional), request_more_evidence (optional dict with keys: tool (one of allowlisted tools), params (object)).
 
+REQUESTING ADDITIONAL EVIDENCE (ALLOWLIST):
+- If you request additional evidence, you MUST select exactly one tool from this allowlist (use the tool name exactly):
+  - get_asset_context
+  - get_telemetry_window
+  - get_maintenance_history
+  - search_manual
+  - get_prior_incidents
+  - get_inspection_image
+- The request_more_evidence object must be exactly: {"tool": "<one_of_the_above>", "params": {...}}.
+- Params MUST NOT contain arbitrary URLs, SQL, shell commands, direct API calls, filesystem paths, or credentials.
+- If none of the six allowlisted tools can provide the needed evidence, set request_more_evidence to false or omit it, and explain in the finding what specific evidence is missing and why it is required. Do NOT request non-allowlisted tools in that case.
+
+FORBIDDEN REQUESTS:
+- Do NOT request or reference any of the following: run_diagnostic_task, arbitrary tools, arbitrary functions, arbitrary URLs, SQL statements, shell commands, direct API calls, filesystem access, or any undocumented tool.
+
 GROUNDING RULES:
 - Any referenced evidence IDs MUST exist in the supplied EvidenceBundle.
-- If you request_more_evidence, the tool MUST be one of the allowlisted tools and params MUST NOT contain arbitrary URLs or SQL statements.
 - Do NOT invent evidence IDs.
 
 SAFETY RULES:
 - Do NOT make approval or action decisions.
-- Do NOT include arbitrary URLs or SQL in output.
 - Do NOT return credentials or access tokens.
 
 RETURN:
 Return exactly the JSON object required; do not include surrounding commentary or markdown.
 """
+
 
 
 def compute_prompt_hash(template: str) -> str:
@@ -92,7 +106,13 @@ def render_critic_prompt(incident_context: Dict[str, Any], evidence: List[Dict[s
     ctx = _format_incident_context(incident_context)
     ev_text = _format_evidence_list(evidence)
     hyp_text = "\n" + ("Existing hypotheses summary: " + str(hypotheses) if hypotheses else "")
-    return CRITIC_PROMPT_TEMPLATE.format(incident_context=ctx + "\n" + ev_text + hyp_text)
+    # Use a direct replace for the {incident_context} placeholder to avoid
+    # interpreting other literal braces in the template as format fields.
+    # The template intentionally contains braces for illustrative JSON
+    # fragments (e.g. {point, conflicting_evidence_ids, rationale}) which
+    # must remain verbatim. Calling str.format on the whole template can
+    # raise KeyError when those braces are present.
+    return CRITIC_PROMPT_TEMPLATE.replace("{incident_context}", ctx + "\n" + ev_text + hyp_text)
 
 
 def _format_incident_context(incident_context: Dict[str, Any]) -> str:

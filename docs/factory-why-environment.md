@@ -2218,7 +2218,28 @@ FRONTEND
 
 IDENTITY
 └── Firebase Authentication
-    └── Google Sign-In
+    ├── Google Sign-In
+    └── Sign in with Apple (optional)
+
+### Sign in with Apple (external configuration)
+
+To enable Sign in with Apple for the frontend using Firebase Authentication, configure the following in the Apple Developer console and the Firebase Console:
+
+- Apple Developer Program enrollment (paid account required)
+- Enable "Sign in with Apple" capability for your App ID
+- Create a Service ID for web sign-in and configure the Redirect URI:
+  `https://<FIREBASE_PROJECT_ID>.firebaseapp.com/__/auth/handler`
+- Record the Apple Team ID and the Key ID for the generated private key
+- Generate a private key in the Apple Developer console and upload the private key to the Firebase Authentication provider configuration for Apple (Firebase Console -> Authentication -> Sign-in method -> Apple)
+
+Important security note: The Apple private key and any OAuth client secrets must NEVER be stored in source code, Vite env files, repository fixtures, or public documentation. They must remain in the Firebase provider configuration or a secure secret manager.
+
+Document the presence of Apple configuration in your deployment checklist as follows:
+
+- APPLE_FIREBASE_CONFIG = YES/NO (set to YES after adding the Apple private key in Firebase)
+- Return URL used: `https://<FIREBASE_PROJECT_ID>.firebaseapp.com/__/auth/handler`
+
+If Apple configuration is not completed, the frontend will surface a safe error message when users attempt to sign in with Apple.
 
 BACKEND TARGET
 ├── Python 3.12

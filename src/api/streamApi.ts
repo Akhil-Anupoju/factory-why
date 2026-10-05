@@ -121,10 +121,17 @@ export function createInvestigationStream(incidentId: string, onEvent: OnSseEven
     } catch (e) {
       // ignore
     }
+    // reader.cancel() returns a promise; guard against rejected promise to
+    // avoid unhandled rejection errors (some browsers surface AbortError
+    // rejections from the underlying stream buffer). Attach a noop catch.
     try {
-      reader?.cancel();
+      const p = reader?.cancel();
+      if (p && typeof (p as any).catch === 'function') {
+        // swallow any rejection
+        (p as Promise<any>).catch(() => {});
+      }
     } catch (e) {
-      // ignore
+      // ignore synchronous errors
     }
     running = false;
   }

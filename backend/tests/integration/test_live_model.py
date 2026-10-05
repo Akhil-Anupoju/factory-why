@@ -21,10 +21,11 @@ def _has_adc_and_vertex():
     if not model:
         return False, "ADK_MODEL_NAME not set"
     # If we're targeting Vertex AI, prefer the ADK/genai runtime to be
-    # explicitly configured to use Vertex via ADC. This env is honored by
-    # google.genai metadata helpers in some ADK versions.
-    if os.getenv("GOOGLE_GENAI_USE_VERTEXAI") not in ("1", "true", "True"):
-        return False, "GOOGLE_GENAI_USE_VERTEXAI not set (recommended)"
+    # explicitly configured to use Enterprise/Vertex via ADC. Newer ADK
+    # versions honor GOOGLE_GENAI_USE_ENTERPRISE; fall back to the older
+    # GOOGLE_GENAI_USE_VERTEXAI for compatibility.
+    if os.getenv("GOOGLE_GENAI_USE_ENTERPRISE") not in ("1", "true", "True") and os.getenv("GOOGLE_GENAI_USE_VERTEXAI") not in ("1", "true", "True"):
+        return False, "GOOGLE_GENAI_USE_ENTERPRISE or GOOGLE_GENAI_USE_VERTEXAI not set (recommended)"
     return True, "ok"
 
 

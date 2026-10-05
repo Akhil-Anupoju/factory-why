@@ -102,15 +102,18 @@ export default function App() {
       // as recoverable by falling back to demo data. Only network/back-end
       // availability errors should allow the explicit demo fallback.
       const msg = err?.message || String(err);
-      setError(msg);
-      // If this was an authentication or authorization failure, surface it
-      // and avoid the mock fallback so the UI can prompt for re-auth.
+      // If fallback is allowed and this is not an auth error, use demo data
       if (fallbackToMock && !(err instanceof ApiError && (err.status === 401 || err.status === 403))) {
         // backend unavailable or other network error: fallback to demo data
         setCurrentCase(JSON.parse(JSON.stringify(PRIMARY_SCENARIO_CNC04)));
         setUsingMock(true);
+        // clear the visible error so the UI shows the demo banner instead
+        setError(null);
         // if using mock data, ensure stream is stopped
         setStreamState('idle');
+      } else {
+        // auth/authorization errors or fallback not allowed: surface error
+        setError(msg);
       }
     } finally {
       setLoading(false);

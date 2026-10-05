@@ -12,9 +12,13 @@ import CncImage from '../../cnc_image.webp?url';
 // Visually improved login page with local account creation and Google OAuth
 export const LoginPage: React.FC = () => {
   const auth = useAuth() as any;
-  const { signIn, signInLocal, signUpLocal } = auth;
+  const { signIn, signInWithGoogle, signInWithGithub, signInLocal, signUpLocal, firebaseAvailable } = auth as any;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // which provider is currently performing sign-in (null when idle)
+  const [providerLoading, setProviderLoading] = useState<null | 'google' | 'github' | 'facebook'>(null);
+  // fallback flag to show inline GitHub SVG if the PNG asset fails to load
+  const [githubImgFailed, setGithubImgFailed] = useState(false);
   // default to signup to match the requested design
   const [mode, setMode] = useState<'login' | 'signup' | 'oauth'>('signup');
 
@@ -53,30 +57,44 @@ export const LoginPage: React.FC = () => {
   }, [showTerms]);
 
   const handleGoogleSignIn = async () => {
-    setLoading(true); clearError();
+    clearError();
+    setProviderLoading('google');
     try {
-      await signIn();
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally { setLoading(false); }
-  };
-
-  const handleAppleSignIn = async () => {
-    setLoading(true); clearError();
-    try {
-      if (auth && typeof auth.signInApple === 'function') {
-        await auth.signInApple();
+      if (!firebaseAvailable) throw new Error('Firebase not initialized');
+      // prefer explicit signInWithGoogle when available
+      if (signInWithGoogle) {
+        await signInWithGoogle();
       } else {
-        // Apple OAuth not configured in this environment — inform operator
-        setError('Apple Sign-In is not configured in this environment.');
+        await signIn();
       }
     } catch (e: any) {
       setError(e?.message || String(e));
-    } finally { setLoading(false); }
+    } finally {
+      setProviderLoading(null);
+    }
+  };
+
+  const handleGithubSignIn = async () => {
+    clearError();
+    setProviderLoading('github');
+    try {
+      if (signInWithGithub && typeof signInWithGithub === 'function') {
+        await signInWithGithub();
+      } else if (auth && typeof auth.signInWithGithub === 'function') {
+        await auth.signInWithGithub();
+      } else {
+        setError('GitHub Sign-In is not configured in this environment.');
+      }
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setProviderLoading(null);
+    }
   };
 
   const handleFacebookSignIn = async () => {
-    setLoading(true); clearError();
+    clearError();
+    setProviderLoading('facebook');
     try {
       if (auth && typeof auth.signInFacebook === 'function') {
         await auth.signInFacebook();
@@ -85,7 +103,9 @@ export const LoginPage: React.FC = () => {
       }
     } catch (e: any) {
       setError(e?.message || String(e));
-    } finally { setLoading(false); }
+    } finally {
+      setProviderLoading(null);
+    }
   };
 
   const handleLocalSignIn = async () => {
@@ -189,13 +209,35 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-center gap-4">
-                  <button onClick={handleGoogleSignIn} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white">
-                    <img src="/icons8-google-48.png" alt="Google" className="w-5 h-5" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}}/>
-                    <span className="text-sm">Google</span>
+                  {/* Use identical provider button styles for signup and login to ensure consistent icon/text spacing */}
+                  <button
+                    onClick={handleGoogleSignIn}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white"
+                    aria-busy={providerLoading === 'google'}
+                    aria-live="polite"
+                    role="button"
+                    disabled={!!providerLoading}
+                  >
+                    <img src="/assets/icons8-google-48.png" alt="Google" className="w-5 h-5" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}}/>
+                    <span className="text-sm">{providerLoading === 'google' ? 'Signing in with Google…' : 'Google'}</span>
                   </button>
-                  <button onClick={handleAppleSignIn} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white">
-                    <img src="/icons8-apple-50.png" alt="Apple" className="w-5 h-5" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}}/>
-                    <span className="text-sm">Apple</span>
+                  <button
+                    onClick={handleGithubSignIn}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white"
+                    aria-busy={providerLoading === 'github'}
+                    aria-live="polite"
+                    role="button"
+                    disabled={!!providerLoading}
+                    title={providerLoading === 'github' ? 'Signing in with GitHub…' : 'Sign in with GitHub'}
+                  >
+                    {!githubImgFailed ? (
+                      <img src="/assets/icons8-github-logo-64.png" alt="GitHub" className="w-5 h-5" onError={() => setGithubImgFailed(true)} />
+                    ) : (
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                        <path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.54 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2 .37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.2 1.87.86 2.33.66.07-.52.28-.86.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+                      </svg>
+                    )}
+                    <span className="text-sm">{providerLoading === 'github' ? 'Signing in with GitHub…' : 'GitHub'}</span>
                   </button>
                 </div>
               </div>
@@ -223,13 +265,35 @@ export const LoginPage: React.FC = () => {
 
                 <div className="text-center text-xs text-slate-500">Or sign in with</div>
                 <div className="flex items-center justify-center gap-4">
-                  <button onClick={handleGoogleSignIn} className="inline-flex items-center justify-center p-3 rounded-xl border border-slate-200 bg-white"> 
-                    <img src="/icons8-google-48.png" alt="Google" className="w-5 h-5" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}}/>
-                    <span className="sr-only">Google</span>
+                  <button
+                    onClick={handleGoogleSignIn}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white"
+                    aria-busy={providerLoading === 'google'}
+                    aria-live="polite"
+                    role="button"
+                    disabled={!!providerLoading}
+                    title={providerLoading === 'google' ? 'Signing in with Google…' : 'Sign in with Google'}
+                  > 
+                    <img src="/assets/icons8-google-48.png" alt="Google" className="w-5 h-5" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}}/>
+                    <span className="text-sm">{providerLoading === 'google' ? 'Signing in with Google…' : 'Google'}</span>
                   </button>
-                  <button onClick={handleAppleSignIn} className="inline-flex items-center justify-center p-3 rounded-xl border border-slate-200 bg-white">
-                    <img src="/icons8-apple-50.png" alt="Apple" className="w-5 h-5" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}}/>
-                    <span className="sr-only">Apple</span>
+                  <button
+                    onClick={handleGithubSignIn}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white"
+                    aria-busy={providerLoading === 'github'}
+                    aria-live="polite"
+                    role="button"
+                    disabled={!!providerLoading}
+                    title={providerLoading === 'github' ? 'Signing in with GitHub…' : 'Sign in with GitHub'}
+                  >
+                    {!githubImgFailed ? (
+                      <img src="/assets/icons8-github-logo-64.png" alt="GitHub" className="w-5 h-5" onError={() => setGithubImgFailed(true)} />
+                    ) : (
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                        <path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.54 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2 .37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.2 1.87.86 2.33.66.07-.52.28-.86.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+                      </svg>
+                    )}
+                    <span className="text-sm">{providerLoading === 'github' ? 'Signing in with GitHub…' : 'GitHub'}</span>
                   </button>
                 </div>
               </div>

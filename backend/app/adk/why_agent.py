@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ValidationError
+import inspect
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.tools.function_tool import FunctionTool
@@ -133,11 +134,22 @@ class WhyAgent:
 
         # call model (in tests this can be replaced by model_runner_override)
         if model_runner_override:
-            # Explicitly pass agent_role so the model runner can select the
-            # appropriate prompt and schema for WHY vs CRITIC. Some overrides
-            # default to why_agent which caused Critic to receive the wrong
-            # prompt in earlier runs.
-            raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle, agent_role="why_agent")
+            # Be tolerant of two model_runner_override signatures used in
+            # unit tests and live runner: some accept an `agent_role` kwarg,
+            # others accept only positional args. Inspect the signature and
+            # call accordingly to preserve backward compatibility.
+            try:
+                sig = inspect.signature(model_runner_override)
+                if "agent_role" in sig.parameters:
+                    raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle, agent_role="why_agent")
+                else:
+                    raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle)
+            except (TypeError, ValueError):
+                # If signature inspection fails, fallback to a best-effort call
+                try:
+                    raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle, agent_role="why_agent")
+                except TypeError:
+                    raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle)
         else:
             # In real ADK usage, we would run the agent runner to call the model.
             # For now, raise to avoid accidental network calls in unit tests.
