@@ -74,7 +74,11 @@ class WhyAgent:
         elif isinstance(raw, list):
             raw_list = raw
         else:
-            raise ValidationError(f"Unexpected model output shape: {type(raw)}")
+            # Use a plain ValueError here. Constructing pydantic.ValidationError
+            # with a simple message is incorrect (it expects line_errors) and
+            # leads to a TypeError during exception construction. We still
+            # re-raise real pydantic.ValidationError from model_validate below.
+            raise ValueError(f"Unexpected model output shape: {type(raw)}")
 
         parsed: List[HypothesisModel] = []
         allowed_statuses = {"SUPPORTED", "LIKELY", "COMPETING", "UNRESOLVED", "CONTRADICTED"}
@@ -89,19 +93,21 @@ class WhyAgent:
             # Normalize status and validate allowed values
             hyp_status = (hyp.status or "").upper()
             if hyp_status not in allowed_statuses:
-                raise ValidationError(f"Unsupported hypothesis status: {hyp.status}")
+                # Use ValueError for internal validation failures so the
+                # exception can be stringified safely when auditing.
+                raise ValueError(f"Unsupported hypothesis status: {hyp.status}")
             hyp.status = hyp_status
 
             # grounding validation: ensure supporting/counter ids are present in evidence bundle
             for eid in (hyp.supporting_evidence_ids or []) + (hyp.counter_evidence_ids or []):
                 if eid and eid not in evidence_ids:
-                    raise ValidationError(f"Unknown evidence id referenced: {eid}")
+                    raise ValueError(f"Unknown evidence id referenced: {eid}")
 
             parsed.append(hyp)
 
         # Enforce 2-3 hypotheses constraint for Phase 3C
         if not (2 <= len(parsed) <= 3):
-            raise ValidationError(f"Model must return 2-3 hypotheses; got {len(parsed)}")
+            raise ValueError(f"Model must return 2-3 hypotheses; got {len(parsed)}")
 
         return parsed
 
@@ -127,7 +133,11 @@ class WhyAgent:
 
         # call model (in tests this can be replaced by model_runner_override)
         if model_runner_override:
-            raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle)
+            # Explicitly pass agent_role so the model runner can select the
+            # appropriate prompt and schema for WHY vs CRITIC. Some overrides
+            # default to why_agent which caused Critic to receive the wrong
+            # prompt in earlier runs.
+            raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle, agent_role="why_agent")
         else:
             # In real ADK usage, we would run the agent runner to call the model.
             # For now, raise to avoid accidental network calls in unit tests.

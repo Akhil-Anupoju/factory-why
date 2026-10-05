@@ -60,7 +60,10 @@ class CriticAgent:
     def _validate_and_parse(self, raw: Any, evidence_ids: List[str]) -> CriticFinding:
         # Accept dict-like raw output
         if not isinstance(raw, dict):
-            raise ValidationError(f"Unexpected Critic output shape: {type(raw)}")
+            # Use ValueError for shape/grounding checks so audits can record
+            # a simple stringified error. Let pydantic.ValidationError raised
+            # by model_validate propagate as-is.
+            raise ValueError(f"Unexpected Critic output shape: {type(raw)}")
 
         try:
             parsed = CriticOutputModel.model_validate(raw)
@@ -78,14 +81,14 @@ class CriticAgent:
         refs.extend(parsed.ignored_evidence_ids or [])
 
         for eid in refs:
-            if eid and eid not in evidence_ids:
-                raise ValidationError(f"Unknown evidence id referenced in critic: {eid}")
+                if eid and eid not in evidence_ids:
+                    raise ValueError(f"Unknown evidence id referenced in critic: {eid}")
 
         # Validate requested tool if present
         if parsed.request_more_evidence:
             tool = parsed.request_more_evidence.get("tool")
             if tool not in self.ALLOWED_TOOLS:
-                raise ValidationError(f"Requested tool '{tool}' is not an allowlisted tool")
+                raise ValueError(f"Requested tool '{tool}' is not an allowlisted tool")
 
         # Map CriticOutputModel -> CriticFinding (adk.state model)
         cf = StateCriticFinding(
@@ -120,7 +123,9 @@ class CriticAgent:
         evidence_ids = [e.evidence_id for e in state.evidence]
 
         if model_runner_override:
-            raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle)
+            # Ensure the model runner knows this is the critic role so it
+            # prepares the correct prompt/template.
+            raw_out = model_runner_override(state.incident_id, state.asset_context, evidence_bundle, agent_role="critic_agent")
         else:
             raise RuntimeError("Live Critic model invocation disabled in tests; provide model_runner_override")
 
