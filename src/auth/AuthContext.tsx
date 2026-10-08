@@ -59,6 +59,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (u) {
         setUser({ uid: u.uid, displayName: u.displayName, email: u.email });
       } else {
+        // Diagnostic only (no PII/tokens): helps distinguish "Firebase
+        // client session was actually cleared" from "a single API call
+        // got a 401". If you see this log unexpectedly shortly after a
+        // successful sign-in, the session is being dropped at the
+        // Firebase SDK/browser level (e.g. third-party storage/cookie
+        // partitioning), not by our backend or API code.
+        // eslint-disable-next-line no-console
+        console.warn('[Auth] onAuthStateChanged fired with null user — Firebase client session ended.');
         setUser(null);
       }
       setLoading(false);
@@ -139,9 +147,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInLocal = async (email: string, password: string) => {
     // Attempt to authenticate against local account store
     const u = await localAuth.authenticateLocal(email, password);
-    // register token getter returning a fake token that encodes uid for dev/demo purposes
-    const fakeTokenGetter = async () => `local:${u.uid}`;
-    setTokenGetter(fakeTokenGetter);
+    // For local/demo sign-in do NOT register a fake Authorization token with
+    // the token provider. Sending a fake `local:` token to the backend causes
+    // the server's Firebase token verifier to reject it (401). Instead keep
+    // the frontend authenticated for demo UI flows while leaving API calls
+    // unauthenticated so the backend can opt-in to anonymous/demo behavior
+    // using FACTORY_WHY_ALLOW_ANONYMOUS_DEMO. This reduces accidental 401s.
     setUser({ uid: u.uid, displayName: u.displayName, email: u.email });
     return u;
   };
@@ -149,8 +160,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUpLocal = async (email: string, password: string, displayName?: string) => {
     const u = await localAuth.createLocalAccount(email, password, displayName || undefined as any);
     // after creating, register token getter and set user
-    const fakeTokenGetter = async () => `local:${u.uid}`;
-    setTokenGetter(fakeTokenGetter);
+    // Same as signInLocal: do not register a fake Authorization token for
+    // local/demo accounts. Keep API calls unauthenticated so the backend
+    // can handle demo mode explicitly when configured.
     setUser({ uid: u.uid, displayName: u.displayName, email: u.email });
     return u;
   };
@@ -168,10 +180,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
-  const getIdToken = async (): Promise<string | null> => {
+  const getIdToken = async (force?: boolean): Promise<string | null> => {
     if (!auth || !auth.currentUser) return null;
     try {
-      return await auth.currentUser.getIdToken();
+      // Firebase SDK exposes getIdToken(force) to optionally refresh the token
+      // when `force` is true. We propagate the `force` arg so callers can
+      // trigger a refresh when they receive 401 from the server.
+      // Note: we intentionally do not expose the token value to logs.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return await (auth.currentUser as any).getIdToken(Boolean(force));
     } catch (e) {
       return null;
     }

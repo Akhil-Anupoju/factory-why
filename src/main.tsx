@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { AuthProvider } from './auth/AuthContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function ClientErrorCatcher({children}: {children: React.ReactNode}) {
   const [error, setError] = useState<string | null>(null);
@@ -55,9 +56,11 @@ if (!document.getElementById('root')) {
 try {
   createRoot(document.getElementById('root')!).render(
     <ClientErrorCatcher>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ErrorBoundary>
     </ClientErrorCatcher>
   );
 } catch (e) {

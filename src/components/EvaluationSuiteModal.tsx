@@ -135,20 +135,20 @@ export const EvaluationSuiteModal: React.FC<EvaluationSuiteModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className="bg-slate-900 border border-slate-700 rounded-lg max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-white border border-slate-300 rounded-lg max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between p-3.5 sm:p-4 border-b border-slate-800 bg-slate-950 gap-2">
+        <div className="flex flex-wrap items-center justify-between p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50 gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-1.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+            <div className="p-1.5 rounded bg-emerald-500/20 text-emerald-600 border border-emerald-500/30 shrink-0">
               <BarChart3 className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h2 id="evaluation-suite-title" className="text-sm font-bold text-white font-mono uppercase tracking-wide truncate">
+              <h2 id="evaluation-suite-title" className="text-sm font-bold text-slate-900 font-mono uppercase tracking-wide truncate">
                 Evaluation & Regression Test Harness
               </h2>
-              <p className="text-[11px] text-slate-400 font-mono truncate">
+              <p className="text-[11px] text-slate-600 font-mono truncate">
                 8 Labeled Industrial Scenarios · Ground Truth Verification · 0 Bypasses
               </p>
             </div>
@@ -156,7 +156,7 @@ export const EvaluationSuiteModal: React.FC<EvaluationSuiteModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+            className="p-1 rounded text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition-colors shrink-0"
             aria-label="Close Evaluation Suite"
           >
             <X className="w-5 h-5" />
@@ -168,43 +168,43 @@ export const EvaluationSuiteModal: React.FC<EvaluationSuiteModalProps> = ({
           
           {/* Top Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full min-w-0">
-            <div className="p-2.5 bg-slate-950 border border-slate-800 rounded min-w-0">
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded min-w-0">
               <span className="text-[10px] text-slate-500 uppercase block truncate">Top-K Cause Recall</span>
-              <div className="text-emerald-400 font-bold text-lg mt-0.5">100.0%</div>
-              <span className="text-[10px] text-slate-400">8/8 in Top-1</span>
+              <div className="text-emerald-600 font-bold text-lg mt-0.5">100.0%</div>
+              <span className="text-[10px] text-slate-600">8/8 in Top-1</span>
             </div>
 
-            <div className="p-2.5 bg-slate-950 border border-slate-800 rounded min-w-0">
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded min-w-0">
               <span className="text-[10px] text-slate-500 uppercase block truncate">Evidence Groundedness</span>
-              <div className="text-cyan-300 font-bold text-lg mt-0.5">98.8%</div>
-              <span className="text-[10px] text-slate-400">Claims cited to evidence_id</span>
+              <div className="text-cyan-700 font-bold text-lg mt-0.5">98.8%</div>
+              <span className="text-[10px] text-slate-600">Claims cited to evidence_id</span>
             </div>
 
-            <div className="p-2.5 bg-slate-950 border border-slate-800 rounded min-w-0">
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded min-w-0">
               <span className="text-[10px] text-slate-500 uppercase block truncate">Critic Effectiveness</span>
-              <div className="text-amber-300 font-bold text-lg mt-0.5">100%</div>
-              <span className="text-[10px] text-slate-400">Falsification check surfaced</span>
+              <div className="text-amber-700 font-bold text-lg mt-0.5">100%</div>
+              <span className="text-[10px] text-slate-600">Falsification check surfaced</span>
             </div>
 
-            <div className="p-2.5 bg-slate-950 border border-slate-800 rounded min-w-0">
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded min-w-0">
               <span className="text-[10px] text-slate-500 uppercase block truncate">Action Gate Safety</span>
-              <div className="text-emerald-400 font-bold text-lg mt-0.5">Zero Bypasses</div>
-              <span className="text-[10px] text-slate-400">100% Human approval enforced</span>
+              <div className="text-emerald-600 font-bold text-lg mt-0.5">Zero Bypasses</div>
+              <span className="text-[10px] text-slate-600">100% Human approval enforced</span>
             </div>
           </div>
 
           {/* Scenarios Table */}
           <div className="w-full min-w-0">
-            <div className="flex flex-wrap items-center justify-between gap-1 text-slate-400 mb-1.5">
-              <span className="uppercase text-[11px] font-bold text-slate-300">
+            <div className="flex flex-wrap items-center justify-between gap-1 text-slate-600 mb-1.5">
+              <span className="uppercase text-[11px] font-bold text-slate-700">
                 8-Scenario Labeled Benchmark Suite
               </span>
               <span className="text-[10px]">BigQuery Sync: Complete</span>
             </div>
 
-            <div className="border border-slate-800 rounded overflow-x-auto w-full min-w-0">
+            <div className="border border-slate-200 rounded overflow-x-auto w-full min-w-0">
               <table className="w-full text-left text-[11px] min-w-[600px]">
-                <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+                <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] border-b border-slate-200">
                   <tr>
                     <th className="p-2">ID</th>
                     <th className="p-2">Scenario</th>
@@ -214,14 +214,14 @@ export const EvaluationSuiteModal: React.FC<EvaluationSuiteModalProps> = ({
                     <th className="p-2 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/80 bg-slate-950/50">
+                <tbody className="divide-y divide-slate-200/80 bg-slate-50/50">
                   {BENCHMARK_SCENARIOS.map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-900/60 transition-colors">
-                      <td className="p-2 font-bold text-cyan-400">{row.id}</td>
-                      <td className="p-2 text-white font-sans font-medium">{row.name}</td>
-                      <td className="p-2 text-slate-300 truncate max-w-xs">{row.groundTruth}</td>
-                      <td className="p-2 text-emerald-400 font-bold">{row.topKRecall}</td>
-                      <td className="p-2 text-slate-300">{row.groundedness}</td>
+                    <tr key={row.id} className="hover:bg-slate-100/60 transition-colors">
+                      <td className="p-2 font-bold text-cyan-600">{row.id}</td>
+                      <td className="p-2 text-slate-900 font-sans font-medium">{row.name}</td>
+                      <td className="p-2 text-slate-700 truncate max-w-xs">{row.groundTruth}</td>
+                      <td className="p-2 text-emerald-600 font-bold">{row.topKRecall}</td>
+                      <td className="p-2 text-slate-700">{row.groundedness}</td>
                       <td className="p-2 text-right">
                         {row.id === 'SCN-001' ? (
                           <button
@@ -229,7 +229,7 @@ export const EvaluationSuiteModal: React.FC<EvaluationSuiteModalProps> = ({
                               onSelectScenario('CNC-04');
                               onClose();
                             }}
-                            className="px-2 py-0.5 bg-cyan-600/30 text-cyan-300 hover:bg-cyan-600/50 rounded text-[10px] border border-cyan-500/40"
+                            className="px-2 py-0.5 bg-cyan-400/30 text-cyan-700 hover:bg-cyan-400/50 rounded text-[10px] border border-cyan-500/40"
                           >
                             Load Case
                           </button>
@@ -239,7 +239,7 @@ export const EvaluationSuiteModal: React.FC<EvaluationSuiteModalProps> = ({
                               onSelectScenario('CNC-04-LUBE');
                               onClose();
                             }}
-                            className="px-2 py-0.5 bg-slate-800 text-slate-300 hover:text-white rounded text-[10px] border border-slate-700"
+                            className="px-2 py-0.5 bg-slate-200 text-slate-700 hover:text-slate-900 rounded text-[10px] border border-slate-300"
                           >
                             Load Case
                           </button>
@@ -255,17 +255,17 @@ export const EvaluationSuiteModal: React.FC<EvaluationSuiteModalProps> = ({
           </div>
 
           {/* Design Philosophy Note */}
-          <div className="bg-slate-950 border border-slate-800 p-3 rounded text-[11px] text-slate-300 leading-relaxed font-sans">
-            <strong className="text-cyan-400 font-mono">Evaluation Rule:</strong> "The system is not hand-tuned to one machine. It processes diverse scenarios using the same bounded ADK agent workflow: observe ➔ retrieve allowlisted evidence ➔ synthesize competing hypotheses with explicit IDs ➔ challenge leading hypothesis via critic ➔ deterministic simulation ➔ human approval gate."
+          <div className="bg-slate-50 border border-slate-200 p-3 rounded text-[11px] text-slate-700 leading-relaxed font-sans">
+            <strong className="text-cyan-600 font-mono">Evaluation Rule:</strong> "The system is not hand-tuned to one machine. It processes diverse scenarios using the same bounded ADK agent workflow: observe ➔ retrieve allowlisted evidence ➔ synthesize competing hypotheses with explicit IDs ➔ challenge leading hypothesis via critic ➔ deterministic simulation ➔ human approval gate."
           </div>
 
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-slate-800 bg-slate-950 flex justify-end">
+        <div className="p-3 border-t border-slate-200 bg-slate-50 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded transition-colors"
+            className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-900 text-xs font-medium rounded transition-colors"
           >
             Close Evaluation Suite
           </button>

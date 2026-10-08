@@ -20,6 +20,8 @@
     min-height: 100vh;
     margin: 0;
     padding: 0;
+    background-color: #f8fafc;
+    color: #0f172a;
   }
   
   #root {
@@ -37,7 +39,7 @@
 
   /* Universal focus visibility for keyboard accessibility */
   :focus-visible {
-    outline: 2px solid #38bdf8;
+    outline: 2px solid #4f46e5;
     outline-offset: 2px;
   }
 
@@ -48,20 +50,20 @@
   }
 }
 
-/* Custom scrollbars for industrial density */
+/* Custom scrollbars — light, subtle */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #f1f5f9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 3px;
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #94a3b8;
 }
 
 /* Ensure long text, tokens, or codes never force horizontal overflow */
@@ -70,4 +72,12 @@
   word-break: break-word;
 }
 
-
+/* Subtle fade/slide transitions used by StageSection expand and the live
+   analysis banner, so state changes feel smooth rather than abrupt. */
+@keyframes fw-fade-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fw-animate-in {
+  animation: fw-fade-in 0.18s ease-out;
+}

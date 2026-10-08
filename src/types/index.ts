@@ -166,7 +166,10 @@ export interface Recommendation {
   safety_protocol_code: string;
 }
 
-export type ApprovalDecision = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REQUEST_MORE_EVIDENCE' | 'CHALLENGE';
+// Backend canonical decisions include 'MORE_EVIDENCE_REQUESTED'. Keep old
+// client-side aliases for developer ergonomics but accept the backend value
+// when received from the API.
+export type ApprovalDecision = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REQUEST_MORE_EVIDENCE' | 'MORE_EVIDENCE_REQUESTED' | 'CHALLENGE';
 
 export interface ApprovalRecord {
   approval_id: string;

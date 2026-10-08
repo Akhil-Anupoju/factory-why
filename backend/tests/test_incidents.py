@@ -57,11 +57,25 @@ def test_simulate_endpoint():
     assert [o.get("option") for o in arr] == ["CONTINUE", "INSPECT", "REPAIR"]
 
 
-def test_challenge_endpoint():
+def test_challenge_endpoint_requires_auth():
     r = client.post("/api/incidents/INC-2026-0827/challenge", json={})
-    assert r.status_code == 200
-    payload = r.json()
-    assert payload.get("critic_id") == "CRITIC-2026-001"
+    assert r.status_code == 401
+
+
+def test_challenge_endpoint_live_model_required():
+    # This endpoint now triggers the REAL ADK + Gemini/Vertex AI pipeline
+    # (RootOrchestrator: Evidence -> WHY -> Critic -> targeted retrieval ->
+    # revised WHY). In the default test/local environment ADK_MODEL_PROVIDER
+    # is not "vertex_ai", so the live pipeline must fail explicitly rather
+    # than silently returning fabricated data (no fake-auth, no demo
+    # fallback in CLOUD/PRODUCTION).
+    r = client.post(
+        "/api/incidents/INC-2026-0827/challenge",
+        json={},
+        headers={"Authorization": "Bearer tok-ok"},
+    )
+    assert r.status_code == 502
+    assert "Live investigation unavailable" in r.json().get("detail", "")
 
 
 def test_stream_sse():

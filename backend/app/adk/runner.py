@@ -23,22 +23,25 @@ class ADKRunner:
         self.services = services or {}
         self.model_config = ModelConfigLoader.load_from_env()
 
-    def run_workflow(self, orchestrator, state):
+    def run_workflow(self, orchestrator, state, force_live: bool = False):
         """Prepare an optional live model runner (opt-in) and execute the
         provided orchestrator against the given InvestigationState.
 
         Behavior:
-        - If FACTORY_WHY_LIVE_MODEL_TESTS is truthy AND the configured
-          model provider is `vertex_ai`, attach a `model_runner_override`
-          into the orchestrator.services so Why/Critic agents may call the
-          live model. The actual model call is performed lazily inside the
+        - If FACTORY_WHY_LIVE_MODEL_TESTS is truthy (integration-test opt-in)
+          OR `force_live=True` is passed explicitly by production call sites
+          (e.g. the live investigation service), AND the configured model
+          provider is `vertex_ai`, attach a `model_runner_override` into the
+          orchestrator.services so Why/Critic agents may call the live
+          model. The actual model call is performed lazily inside the
           override and will only run when the orchestrator invokes WHY/CRITIC.
         - Otherwise leave orchestrator.services unchanged so the orchestrator
           will skip live model calls (existing default behavior).
         """
 
         live_flag = os.getenv("FACTORY_WHY_LIVE_MODEL_TESTS", "0")
-        enabled = live_flag not in ("", "0", "false", "False", "no", "None")
+        env_enabled = live_flag not in ("", "0", "false", "False", "no", "None")
+        enabled = env_enabled or force_live
 
         # Only enable live Vertex tests when explicitly requested
         if enabled and (self.model_config.provider or "").lower() == "vertex_ai":

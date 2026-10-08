@@ -1,6 +1,14 @@
-import createInvestigationStream from '../api/streamApi';
-
 import { vi } from 'vitest';
+
+// Mock tokenProvider before importing the stream implementation so the
+// stream can call getToken/getToken(true) and our test can control the
+// refreshed-token behavior.
+vi.mock('../api/tokenProvider', () => ({
+  getToken: vi.fn(),
+}));
+
+import { getToken } from '../api/tokenProvider';
+import createInvestigationStream from '../api/streamApi';
 
 describe('streamApi', () => {
   it('parses events and stops on awaiting_approval (smoke)', async () => {
@@ -18,7 +26,19 @@ describe('streamApi', () => {
       }
     });
 
-    global.fetch = vi.fn(() => Promise.resolve({ ok: true, body: rs } as any));
+    // Ensure tokenProvider returns a token initially and a refreshed token
+    // when called with `true` during 401 handling.
+    (getToken as unknown as { mockReset?: () => void }).mockReset?.();
+    (getToken as unknown as { mockResolvedValueOnce?: (v: any) => void }).mockResolvedValueOnce?.('OLD-TOKEN');
+    (getToken as unknown as { mockResolvedValueOnce?: (v: any) => void }).mockResolvedValueOnce?.('NEW-TOKEN');
+
+    // First call simulates 401 Unauthorized, second call returns the stream
+    let call = 0;
+    global.fetch = vi.fn((url: string, opts: any) => {
+      call++;
+      if (call === 1) return Promise.resolve({ ok: false, status: 401, statusText: 'Unauthorized' } as any);
+      return Promise.resolve({ ok: true, body: rs } as any);
+    });
 
     const events: any[] = [];
     const svc = createInvestigationStream('INC-2026-0827', (ev) => events.push(ev), (err) => {

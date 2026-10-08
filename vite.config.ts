@@ -17,6 +17,18 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // Development-only proxy: forward /api requests to the local backend
+      // This preserves same-origin fetch URLs like `/api/...` while routing
+      // them to the FastAPI server running on localhost:8000. It avoids CORS
+      // and does not change production build behavior.
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+          ws: false,
+        },
+      },
     },
   };
 });

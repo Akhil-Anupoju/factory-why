@@ -1,13 +1,13 @@
 import React from 'react';
-import { 
-  Play, 
-  Pause, 
-  ChevronRight, 
-  ChevronLeft, 
-  Sparkles, 
-  X, 
-  CheckCircle2, 
-  Clock, 
+import {
+  Play,
+  Pause,
+  ChevronRight,
+  ChevronLeft,
+  Sparkles,
+  X,
+  CheckCircle2,
+  Clock,
   Lightbulb,
   Award
 } from 'lucide-react';
@@ -118,16 +118,16 @@ export const DemoScriptBar: React.FC<DemoScriptBarProps> = ({
   };
 
   return (
-    <div className="bg-slate-900 border-b border-cyan-500/30 px-3 sm:px-4 py-2 text-slate-100 shadow-md w-full min-w-0">
+    <div className="bg-white border-b border-cyan-500/30 px-3 sm:px-4 py-2 text-slate-900 shadow-md w-full min-w-0">
       <div className="max-w-[1720px] mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5 sm:gap-3 min-w-0">
-        
+
         {/* Step Progress & Controls */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0 min-w-0">
-          <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded border border-slate-800 shrink-0">
+          <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-200 shrink-0">
             <button
               onClick={onTogglePlay}
               className={`p-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors ${
-                isPlaying ? 'bg-amber-500/20 text-amber-300' : 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30'
+                isPlaying ? 'bg-amber-500/20 text-amber-700' : 'bg-cyan-500/20 text-cyan-700 hover:bg-cyan-500/30'
               }`}
               title={isPlaying ? 'Pause auto-progression' : 'Auto play demo walkthrough'}
             >
@@ -137,23 +137,23 @@ export const DemoScriptBar: React.FC<DemoScriptBarProps> = ({
             <button
               onClick={handlePrev}
               disabled={currentStep === 1}
-              className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
+              className="p-1 rounded text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:hover:text-slate-600"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-xs font-mono font-semibold px-1 text-slate-300">
+            <span className="text-xs font-mono font-semibold px-1 text-slate-700">
               {currentStep}/{DEMO_BEATS.length}
             </span>
             <button
               onClick={handleNext}
               disabled={currentStep === DEMO_BEATS.length}
-              className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
+              className="p-1 rounded text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:hover:text-slate-600"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs font-mono text-cyan-400 shrink-0">
+          <div className="flex items-center gap-1.5 text-xs font-mono text-cyan-600 shrink-0">
             <Clock className="w-3.5 h-3.5" />
             <span>{currentBeat.timeRange}</span>
           </div>
@@ -164,11 +164,11 @@ export const DemoScriptBar: React.FC<DemoScriptBarProps> = ({
                 key={beat.id}
                 onClick={() => onSelectStep(beat.id)}
                 className={`h-2 rounded-full transition-all ${
-                  beat.id === currentStep 
-                    ? 'w-6 bg-cyan-400' 
-                    : beat.id < currentStep 
-                    ? 'w-2.5 bg-cyan-700 hover:bg-cyan-600' 
-                    : 'w-2 bg-slate-800 hover:bg-slate-700'
+                  beat.id === currentStep
+                    ? 'w-6 bg-cyan-600'
+                    : beat.id < currentStep
+                    ? 'w-2.5 bg-cyan-300 hover:bg-cyan-400'
+                    : 'w-2 bg-slate-200 hover:bg-slate-300'
                 }`}
                 title={`Beat ${beat.id}: ${beat.screenAction}`}
               />
@@ -178,27 +178,27 @@ export const DemoScriptBar: React.FC<DemoScriptBarProps> = ({
 
         {/* Center: Narration Voiceover Prompt */}
         <div className="flex-1 min-w-0 px-0 sm:px-2 w-full md:w-auto">
-          <div className="text-xs text-slate-200 font-medium leading-snug break-anywhere">
-            <span className="text-cyan-400 font-semibold mr-1.5 font-mono">Narration:</span>
-            <span className="italic text-slate-300">{currentBeat.narration}</span>
+          <div className="text-xs text-slate-800 font-medium leading-snug break-anywhere">
+            <span className="text-cyan-600 font-semibold mr-1.5 font-mono">Narration:</span>
+            <span className="italic text-slate-700">{currentBeat.narration}</span>
           </div>
-          <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5 truncate font-mono">
-            <span className="text-amber-400 font-semibold shrink-0">Action:</span>
+          <div className="text-[11px] text-slate-600 flex items-center gap-1.5 mt-0.5 truncate font-mono">
+            <span className="text-amber-600 font-semibold shrink-0">Action:</span>
             <span className="truncate">{currentBeat.screenAction}</span>
           </div>
         </div>
 
         {/* Right: Judge Takeaway & Close */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
-          <div className="flex items-center gap-1.5 text-xs bg-slate-950/80 border border-emerald-500/30 text-emerald-300 px-2.5 py-1 rounded max-w-full">
-            <Award className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 shrink-0">Takeaway:</span>
+          <div className="flex items-center gap-1.5 text-xs bg-slate-50/80 border border-emerald-500/30 text-emerald-700 px-2.5 py-1 rounded max-w-full">
+            <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-600 shrink-0">Takeaway:</span>
             <span className="font-semibold text-[11px] truncate">{currentBeat.judgeTakeaway}</span>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800 shrink-0"
+            className="p-1 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-200 shrink-0"
             title="Minimize demo script bar"
           >
             <X className="w-4 h-4" />

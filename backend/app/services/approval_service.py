@@ -57,7 +57,7 @@ class ApprovalService:
 
         return ar
 
-    def decide(self, incident_id: str, approval_id: str, decision: str, actor: str, comment: str = "") -> ApprovalRecord:
+    def decide(self, incident_id: str, approval_id: str, decision: str, actor: str, comment: str = "", recommendation_id: Optional[str] = None) -> ApprovalRecord:
         if decision not in self.VALID_DECISIONS:
             raise ApprovalError(f"Invalid decision: {decision}")
 
@@ -69,15 +69,30 @@ class ApprovalService:
         if existing.get("approval_id") != approval_id:
             raise ApprovalError("Approval ID mismatch")
 
-        # enforce state machine: cannot decide final if already final
-        if existing.get("decision") in ("APPROVED", "REJECTED", "MORE_EVIDENCE_REQUESTED"):
-            raise ApprovalError("Approval already finalized")
+        # Enforce state machine: APPROVED/REJECTED are terminal (the human
+        # decision is final; re-deciding would undermine the audit trail).
+        # MORE_EVIDENCE_REQUESTED is intentionally NOT terminal — requesting
+        # more evidence is a mid-investigation step, and the engineer must
+        # still be able to Approve/Reject (or request evidence again) once
+        # the new evidence is reviewed.
+        if existing.get("decision") in ("APPROVED", "REJECTED"):
+            raise ApprovalError(f"Approval already finalized as {existing.get('decision')}")
 
         # apply decision
         existing["decision"] = decision
         existing["engineer_name"] = actor
         existing["timestamp"] = self._now()
         existing["comment"] = comment
+        # Backfill/refresh recommendation_id against whichever recommendation
+        # this decision was actually made against. Required because some
+        # approval records are pre-seeded (demo fixtures) directly with a
+        # PENDING decision and never pass through request_approval(), which
+        # is otherwise the only place recommendation_id was previously set.
+        # Without this, SimulatedActionService's recommendation_id match
+        # guard (and the frontend's identical guard) would permanently and
+        # silently block action execution even after a valid approval.
+        if recommendation_id:
+            existing["recommendation_id"] = recommendation_id
 
         self.incident_repo.upsert_incident(inc)
 

@@ -54,6 +54,28 @@ export async function fetchIncident(incidentId: string): Promise<InvestigationCa
     throw new ApiError('Malformed incident payload: missing incident_id', res.status);
   }
 
+  // Validate required fields match the frontend contract. In Live/CLOUD
+  // runtimes we must fail-fast on malformed responses so the UI can
+  // surface a clear API contract error instead of crashing during render.
+  const requiredArrayFields = ['evidence', 'telemetry_series', 'audit_trail'];
+  for (const field of requiredArrayFields) {
+    if (!Array.isArray(obj[field])) {
+      throw new ApiError(`Malformed incident payload: expected array '${field}'`, res.status);
+    }
+  }
+
+  if (!obj.asset || typeof obj.asset !== 'object' || !Array.isArray(obj.asset.components)) {
+    throw new ApiError('Malformed incident payload: invalid or missing asset.components', res.status);
+  }
+
+  if (!obj.recommendation || typeof obj.recommendation !== 'object') {
+    throw new ApiError('Malformed incident payload: missing recommendation', res.status);
+  }
+
+  if (!obj.approval || typeof obj.approval !== 'object') {
+    throw new ApiError('Malformed incident payload: missing approval', res.status);
+  }
+
   return obj as InvestigationCase;
 }
 
@@ -158,3 +180,25 @@ export async function fetchAudit(incidentId: string): Promise<AuditEvent[]> {
 }
 
 export { ApiError };
+
+export async function postChallenge(incidentId: string, body: Record<string, any> = {}): Promise<any> {
+  const base = getApiBase().replace(/\/$/, '');
+  const path = `${base}/api/incidents/${encodeURIComponent(incidentId)}/challenge`.replace('//api', '/api');
+
+  let res: Response;
+  try {
+    res = await authFetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch (err: any) {
+    if (err instanceof ClientApiError) throw err;
+    throw new ClientApiError(`Network error while posting challenge: ${err?.message || err}`, null);
+  }
+
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch (err: any) {
+    throw new ApiError(`Failed to parse JSON response: ${err?.message || err}`, res.status);
+  }
+
+  return payload;
+}

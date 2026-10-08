@@ -12,7 +12,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ src = '/assets/factorywhy-
 
   // Simple fallback: circular badge with FW initials when logo file missing
   const Fallback = () => (
-    <div className={`flex items-center justify-center bg-slate-900 text-white font-bold rounded ${className}`} style={{ width: size, height: size }}>
+    <div className={`flex items-center justify-center bg-gradient-to-br from-cyan-600 to-indigo-600 text-white font-bold rounded ${className}`} style={{ width: size, height: size }}>
       <span style={{ fontSize: typeof size === 'number' ? Math.round((size as number) * 0.4) : undefined }}>FW</span>
     </div>
   );

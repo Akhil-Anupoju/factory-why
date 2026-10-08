@@ -54,6 +54,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "evidence_service": evidence_service,
     }
 
+    # Provide a compatibility mapping for older modules that read
+    # `app.state.repos['inc_repo']` etc. Some route handlers and tests
+    # expect this shape; mirror deps into repos for backward compatibility.
+    app.state.repos = {
+        "inc_repo": incident_repo,
+        "ev_repo": evidence_repo,
+        "au_repo": audit_repo,
+        "te_repo": telemetry_repo,
+        "st_repo": storage_repo,
+    }
+
     # Include API router(s) after wiring
     from .api import incidents
 

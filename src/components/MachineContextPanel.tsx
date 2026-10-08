@@ -1,10 +1,10 @@
 import React from 'react';
-import { 
-  Cpu, 
-  Layers, 
-  Activity, 
-  AlertTriangle, 
-  CheckCircle2, 
+import {
+  Cpu,
+  Layers,
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
   HelpCircle,
   Filter,
   Wrench,
@@ -25,19 +25,19 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
   onSelectComponent,
 }) => {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
+    <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
       {/* Panel Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-cyan-400 shrink-0" />
-          <h2 className="text-xs font-bold font-mono tracking-wider text-slate-200 uppercase">
+          <Layers className="w-4 h-4 text-cyan-600 shrink-0" />
+          <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
             Machine Context & Component Twin
           </h2>
         </div>
         {selectedComponentId && (
           <button
             onClick={() => onSelectComponent(null)}
-            className="text-[11px] text-cyan-400 hover:text-cyan-300 font-mono flex items-center gap-1 shrink-0"
+            className="text-[11px] text-cyan-600 hover:text-cyan-700 font-mono flex items-center gap-1 shrink-0"
           >
             <span>Reset filter</span>
           </button>
@@ -45,48 +45,48 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
       </div>
 
       {/* Asset Overview Card */}
-      <div className="bg-slate-950/70 border border-slate-800/80 rounded p-2.5">
+      <div className="bg-slate-50/70 border border-slate-200/80 rounded p-2.5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-sm font-bold text-white font-mono flex items-center gap-2 truncate">
+            <div className="text-sm font-bold text-slate-900 font-mono flex items-center gap-2 truncate">
               <span>{asset.name}</span>
             </div>
-            <div className="text-xs text-slate-400 mt-0.5 truncate">
-              <span>{asset.model}</span> · <span className="text-slate-300">{asset.line}</span>
+            <div className="text-xs text-slate-600 mt-0.5 truncate">
+              <span>{asset.model}</span> · <span className="text-slate-700">{asset.line}</span>
             </div>
           </div>
           <div className="flex flex-col items-start sm:items-end shrink-0">
-            <span className="text-[10px] font-mono text-slate-400 uppercase">Operating State</span>
-            <span className="text-xs font-bold font-mono text-amber-400 bg-amber-950/50 border border-amber-800/50 px-2 py-0.5 rounded mt-0.5 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+            <span className="text-[10px] font-mono text-slate-600 uppercase">Operating State</span>
+            <span className="text-xs font-bold font-mono text-amber-600 bg-amber-50/50 border border-amber-200/50 px-2 py-0.5 rounded mt-0.5 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
               {asset.status}
             </span>
           </div>
         </div>
 
         {/* Health Score & Key Telemetry Stat - Responsive Reflow */}
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-800/60 text-xs">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-200/60 text-xs">
           <div>
-            <div className="text-[10px] font-mono uppercase text-slate-400">Health Index</div>
+            <div className="text-[10px] font-mono uppercase text-slate-600">Health Index</div>
             <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-xl font-bold font-mono text-amber-400">{asset.health_score}%</span>
-              <span className="text-[10px] text-rose-400 font-mono">-36 pts</span>
+              <span className="text-xl font-bold font-mono text-amber-600">{asset.health_score}%</span>
+              <span className="text-[10px] text-rose-600 font-mono">-36 pts</span>
             </div>
-            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
-              <div 
-                className="bg-amber-400 h-full rounded-full transition-all duration-500" 
+            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1">
+              <div
+                className="bg-amber-600 h-full rounded-full transition-all duration-500"
                 style={{ width: `${asset.health_score}%` }}
               />
             </div>
           </div>
 
           <div>
-            <div className="text-[10px] font-mono uppercase text-slate-400">Recent Maintenance</div>
-            <div className="text-xs font-semibold text-cyan-300 mt-0.5 flex items-center gap-1">
-              <Wrench className="w-3 h-3 text-cyan-400 shrink-0" />
+            <div className="text-[10px] font-mono uppercase text-slate-600">Recent Maintenance</div>
+            <div className="text-xs font-semibold text-cyan-700 mt-0.5 flex items-center gap-1">
+              <Wrench className="w-3 h-3 text-cyan-600 shrink-0" />
               <span>Bearing Replaced</span>
             </div>
-            <div className="text-[11px] text-slate-400 mt-0.5 font-mono">
+            <div className="text-[11px] text-slate-600 mt-0.5 font-mono">
               4 days ago (WO #8841)
             </div>
           </div>
@@ -94,12 +94,12 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
       </div>
 
       {/* Spindle Mechanical Topology Vector Diagram */}
-      <div className="bg-slate-950/90 border border-slate-800/80 rounded p-2 text-center relative overflow-hidden w-full">
-        <div className="text-[10px] font-mono text-slate-400 text-left mb-1 flex flex-wrap items-center justify-between gap-1">
+      <div className="bg-slate-50/90 border border-slate-200/80 rounded p-2 text-center relative overflow-hidden w-full">
+        <div className="text-[10px] font-mono text-slate-600 text-left mb-1 flex flex-wrap items-center justify-between gap-1">
           <span>SPINDLE DRIVE TRAIN TOPOLOGY</span>
-          <span className="text-cyan-400 text-[9px]">CLICK NODE TO ISOLATE</span>
+          <span className="text-cyan-600 text-[9px]">CLICK NODE TO ISOLATE</span>
         </div>
-        
+
         <div className="w-full overflow-hidden flex justify-center">
           <svg viewBox="0 0 380 95" className="w-full max-w-[380px] h-auto">
           <defs>
@@ -114,15 +114,15 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
           </defs>
 
           {/* Motor Body */}
-          <g 
+          <g
             className="cursor-pointer transition-opacity hover:opacity-90"
             onClick={() => onSelectComponent('MOTOR-M01')}
           >
-            <rect 
-              x="10" y="20" width="70" height="55" rx="3" 
-              fill="url(#motorGrad)" 
-              stroke={selectedComponentId === 'MOTOR-M01' ? '#38bdf8' : '#475569'} 
-              strokeWidth={selectedComponentId === 'MOTOR-M01' ? '2' : '1'} 
+            <rect
+              x="10" y="20" width="70" height="55" rx="3"
+              fill="url(#motorGrad)"
+              stroke={selectedComponentId === 'MOTOR-M01' ? '#38bdf8' : '#475569'}
+              strokeWidth={selectedComponentId === 'MOTOR-M01' ? '2' : '1'}
             />
             <text x="45" y="48" fill="#e2e8f0" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">MOTOR</text>
             <text x="45" y="60" fill="#f59e0b" fontSize="8" textAnchor="middle" fontFamily="monospace">+8% CURR</text>
@@ -132,29 +132,29 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
           <line x1="80" y1="47" x2="115" y2="47" stroke="#64748b" strokeWidth="6" strokeDasharray="3 2" />
 
           {/* Shaft Section 1 */}
-          <g 
+          <g
             className="cursor-pointer transition-opacity hover:opacity-90"
             onClick={() => onSelectComponent('SHAFT-S01')}
           >
-            <rect 
-              x="115" y="38" width="55" height="18" rx="2" 
-              fill="#1e293b" 
-              stroke={selectedComponentId === 'SHAFT-S01' ? '#38bdf8' : '#475569'} 
-              strokeWidth={selectedComponentId === 'SHAFT-S01' ? '2' : '1'} 
+            <rect
+              x="115" y="38" width="55" height="18" rx="2"
+              fill="#1e293b"
+              stroke={selectedComponentId === 'SHAFT-S01' ? '#38bdf8' : '#475569'}
+              strokeWidth={selectedComponentId === 'SHAFT-S01' ? '2' : '1'}
             />
             <text x="142" y="50" fill="#94a3b8" fontSize="8" textAnchor="middle" fontFamily="monospace">SHAFT</text>
           </g>
 
           {/* Bearing B-04 (Anomalous node - pulsing) */}
-          <g 
+          <g
             className="cursor-pointer transition-opacity hover:opacity-90"
             onClick={() => onSelectComponent('BEARING-B04')}
           >
-            <rect 
-              x="180" y="16" width="60" height="63" rx="4" 
-              fill={selectedComponentId === 'BEARING-B04' ? '#450a0a' : '#1e1b4b'} 
-              stroke="#ef4444" 
-              strokeWidth="2" 
+            <rect
+              x="180" y="16" width="60" height="63" rx="4"
+              fill={selectedComponentId === 'BEARING-B04' ? '#450a0a' : '#1e1b4b'}
+              stroke="#ef4444"
+              strokeWidth="2"
             />
             <circle cx="210" cy="47" r="14" fill="none" stroke="#f87171" strokeWidth="2" strokeDasharray="4 2" />
             <text x="210" y="32" fill="#fca5a5" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="monospace">BEARING B04</text>
@@ -182,13 +182,13 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
 
       {/* Component Hierarchy List */}
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] font-mono text-slate-400 mb-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] font-mono text-slate-600 mb-1.5">
           <span>COMPONENT HIERARCHY</span>
           <span>STATUS</span>
         </div>
 
         <div className="space-y-1.5">
-          {asset.components.map((comp) => {
+          {(Array.isArray(asset.components) ? asset.components : []).map((comp) => {
             const isSelected = selectedComponentId === comp.component_id;
             return (
               <div
@@ -196,44 +196,44 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
                 onClick={() => onSelectComponent(isSelected ? null : comp.component_id)}
                 className={`p-2 rounded border transition-all cursor-pointer text-left ${
                   isSelected
-                    ? 'bg-cyan-950/40 border-cyan-500/60 ring-1 ring-cyan-500/30'
+                    ? 'bg-cyan-50/40 border-cyan-500/60 ring-1 ring-cyan-500/30'
                     : comp.status === 'ABNORMAL'
-                    ? 'bg-slate-950/60 border-rose-900/40 hover:border-rose-700/60'
-                    : 'bg-slate-950/40 border-slate-800/80 hover:border-slate-700'
+                    ? 'bg-slate-50/60 border-rose-100/40 hover:border-rose-300/60'
+                    : 'bg-slate-50/40 border-slate-200/80 hover:border-slate-300'
                 }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-1.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
-                    <span className="text-xs font-semibold text-white font-mono truncate">{comp.name}</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-600 shrink-0" />
+                    <span className="text-xs font-semibold text-slate-900 font-mono truncate">{comp.name}</span>
                   </div>
                   <span
                     className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ${
                       comp.status === 'ABNORMAL'
-                        ? 'text-rose-400 bg-rose-950/60 border border-rose-800/50'
+                        ? 'text-rose-600 bg-rose-50/60 border border-rose-200/50'
                         : comp.status === 'INVESTIGATING'
-                        ? 'text-amber-400 bg-amber-950/60 border border-amber-800/50'
-                        : 'text-emerald-400 bg-emerald-950/60 border border-emerald-800/50'
+                        ? 'text-amber-600 bg-amber-50/60 border border-amber-200/50'
+                        : 'text-emerald-600 bg-emerald-50/60 border border-emerald-200/50'
                     }`}
                   >
                     {comp.status}
                   </span>
                 </div>
 
-                <div className="text-[11px] text-slate-400 mt-1 line-clamp-2 break-anywhere">
+                <div className="text-[11px] text-slate-600 mt-1 line-clamp-2 break-anywhere">
                   {comp.details}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-1 mt-2 pt-1 border-t border-slate-800/50 text-[10px] font-mono text-slate-500">
+                <div className="flex flex-wrap items-center justify-between gap-1 mt-2 pt-1 border-t border-slate-200/50 text-[10px] font-mono text-slate-500">
                   <span className="truncate">Last serviced: {comp.last_serviced}</span>
                   <div className="flex gap-1 shrink-0">
                     {comp.sensor_ids.slice(0, 2).map((s) => (
-                      <span key={s} className="bg-slate-800 px-1 rounded text-slate-300">
+                      <span key={s} className="bg-slate-200 px-1 rounded text-slate-700">
                         {s}
                       </span>
                     ))}
                     {comp.sensor_ids.length > 2 && (
-                      <span className="text-slate-400">+{comp.sensor_ids.length - 2}</span>
+                      <span className="text-slate-600">+{comp.sensor_ids.length - 2}</span>
                     )}
                   </div>
                 </div>

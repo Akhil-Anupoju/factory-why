@@ -7,6 +7,18 @@ coverage/
 .env*
 !.env.example
 
+# Secrets / credentials — never commit these regardless of filename
+*service-account*.json
+*serviceaccount*.json
+*-sa.json
+*.pem
+*.key
+*.p12
+*.pfx
+google-credentials*.json
+firebase-adminsdk*.json
+*.secrets.json
+
 # Python artifacts
 __pycache__/
 *.py[cod]

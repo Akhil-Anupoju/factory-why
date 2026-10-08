@@ -5,8 +5,6 @@ import json
 import time
 import os
 
-from ..repositories.fixtures import get_primary_scenario
-from ..seed.seed_from_fixture import seed_from_fixture
 from ..schemas import ApprovalRecord
 from ..schemas import InvestigationCase, SimulationParameters, SimulationOptionResult, CriticFinding
 from ..simulation.simulator import calculate_deterministic_simulation
@@ -15,7 +13,6 @@ from ..services.approval_service import ApprovalService
 from ..services.simulated_action_service import SimulatedActionService
 from ..services.outcome_service import OutcomeService
 from ..auth import AuthService, AuthenticatedUser, FirebaseVerifier, user_has_role, InvalidTokenError, ExpiredTokenError
-from ..repositories.in_memory import InMemoryIncidentRepo, InMemoryEvidenceRepo, InMemoryAuditRepo, InMemoryTelemetryRepo, InMemoryStorageRepo
 from ..deps import get_incident_repo, get_evidence_repo, get_audit_repo, get_telemetry_repo, get_storage_repo, get_auth_service
 from fastapi import Depends
 from fastapi import Depends, Request
@@ -32,20 +29,50 @@ def health():
 
 
 @router.get("/incidents/{incident_id}")
-def get_incident(incident_id: str):
-    data = get_primary_scenario()
-    if not data or data.get("incident_id") != incident_id:
+def get_incident(
+    incident_id: str,
+    inc_repo=Depends(get_incident_repo),
+    ev_repo=Depends(get_evidence_repo),
+    au_repo=Depends(get_audit_repo),
+):
+    """Return an incident from the configured repository.
+
+    This allows the application to run against in-memory fixtures (local)
+    or cloud-backed Firestore repos (production) depending on the wired
+    repository implementation in app.state.
+
+    In CLOUD/Firestore mode, `evidence` and `audit_trail` are stored as
+    separate subcollections (incidents/{id}/evidence,
+    incidents/{id}/audit) rather than embedded in the incident document.
+    The frontend's data contract requires both as top-level arrays on
+    this response (matching the shape of the LOCAL fixture, which embeds
+    them directly). Always assemble them from the dedicated repos so the
+    response shape is identical across LOCAL and CLOUD runtimes.
+    """
+    data = inc_repo.get_incident(incident_id)
+    if not data:
         raise HTTPException(status_code=404, detail="incident not found")
-    # Return the fixture as-is for this slice
-    return JSONResponse(content=data)
+
+    evidence = list(ev_repo.list_evidence(incident_id) or [])
+    audit_trail = list(au_repo.list_audit(incident_id) or [])
+    # Firestore subcollection order is not guaranteed; sort for determinism.
+    try:
+        audit_trail.sort(key=lambda a: a.get("step_number", 0))
+    except Exception:
+        pass
+
+    merged = {**data, "evidence": evidence, "audit_trail": audit_trail}
+    return JSONResponse(content=merged)
 
 
 @router.get("/incidents/{incident_id}/audit")
-def get_audit(incident_id: str):
-    data = get_primary_scenario()
-    if not data or data.get("incident_id") != incident_id:
+def get_audit(incident_id: str, au_repo=Depends(get_audit_repo), inc_repo=Depends(get_incident_repo)):
+    # Ensure incident exists first
+    incident = inc_repo.get_incident(incident_id)
+    if not incident:
         raise HTTPException(status_code=404, detail="incident not found")
-    return JSONResponse(content={"audit": data.get("audit_trail", [])})
+    audit = au_repo.list_audit(incident_id) or []
+    return JSONResponse(content={"audit": audit})
 
 
 def _sse_event(name: str, payload: Dict[str, Any]):
@@ -53,9 +80,10 @@ def _sse_event(name: str, payload: Dict[str, Any]):
 
 
 @router.get("/incidents/{incident_id}/stream")
-def stream_incident(incident_id: str, request: Request):
-    data = get_primary_scenario()
-    if not data or data.get("incident_id") != incident_id:
+def stream_incident(incident_id: str, request: Request, inc_repo=Depends(get_incident_repo)):
+    # Ensure incident exists in the configured repository
+    incident = inc_repo.get_incident(incident_id)
+    if not incident:
         raise HTTPException(status_code=404, detail="incident not found")
 
     # By default, the stream requires a valid Firebase ID token in
@@ -79,15 +107,32 @@ def stream_incident(incident_id: str, request: Request):
         auth_svc = get_auth_service(request)
         try:
             user = auth_svc.verify_token(id_token)
-        except ExpiredTokenError:
+        except ExpiredTokenError as ex:
+            # Surface short verification reason in server logs for local debugging
+            # Do NOT log tokens or other sensitive headers.
+            try:
+                print(f"[AUTH] Expired token during verify: {str(ex)}")
+            except Exception:
+                pass
             raise HTTPException(status_code=401, detail="Expired token")
-        except InvalidTokenError:
+        except InvalidTokenError as ex:
+            try:
+                print(f"[AUTH] Invalid token during verify: {str(ex)}")
+            except Exception:
+                pass
             raise HTTPException(status_code=401, detail="Invalid token")
-        except Exception:
-            # Generic verification failure — treat as authentication failure
+        except Exception as ex:
+            # Generic verification failure — surface a short message to logs
+            try:
+                print(f"[AUTH] Token verification failed: {str(ex)}")
+            except Exception:
+                pass
             raise HTTPException(status_code=401, detail="Token verification failed")
 
     def event_stream():
+        # For now the investigation stream emits named pipeline steps. In a
+        # production system this would be backed by a real orchestrator or a
+        # pub/sub channel that emits progress events tied to the incident.
         steps = [
             ("retrieving_telemetry", {"step": 1}),
             ("checking_maintenance", {"step": 2}),
@@ -104,9 +149,9 @@ def stream_incident(incident_id: str, request: Request):
 
 
 @router.post("/incidents/{incident_id}/simulate")
-def post_simulate(incident_id: str, params: SimulationParameters):
-    data = get_primary_scenario()
-    if not data or data.get("incident_id") != incident_id:
+def post_simulate(incident_id: str, params: SimulationParameters, inc_repo=Depends(get_incident_repo)):
+    incident = inc_repo.get_incident(incident_id)
+    if not incident:
         raise HTTPException(status_code=404, detail="incident not found")
     results = calculate_deterministic_simulation(params)
     # Pydantic v2: serialize using model_dump()
@@ -125,11 +170,23 @@ def post_approve(incident_id: str, body: Dict[str, Any], request: Request):
     auth_svc = get_auth_service(request)
     try:
         user = auth_svc.verify_token(id_token)
-    except ExpiredTokenError:
+    except ExpiredTokenError as ex:
+        try:
+            print(f"[AUTH] Expired token during verify: {str(ex)}")
+        except Exception:
+            pass
         raise HTTPException(status_code=401, detail="Expired token")
-    except InvalidTokenError:
+    except InvalidTokenError as ex:
+        try:
+            print(f"[AUTH] Invalid token during verify: {str(ex)}")
+        except Exception:
+            pass
         raise HTTPException(status_code=401, detail="Invalid token")
-    except Exception:
+    except Exception as ex:
+        try:
+            print(f"[AUTH] Token verification failed: {str(ex)}")
+        except Exception:
+            pass
         raise HTTPException(status_code=401, detail="Token verification failed")
 
     # Authorization: ensure user has required role to request/decide approval
@@ -187,7 +244,14 @@ def post_approve(incident_id: str, body: Dict[str, Any], request: Request):
             existing_id = existing["approval_id"] if isinstance(existing, dict) else existing.approval_id
         except Exception:
             raise HTTPException(status_code=400, detail="Malformed approval record")
-        approved = approval_svc.decide(incident_id, existing_id, decision, actor_verified, comment)
+        from ..services.approval_service import ApprovalError
+        try:
+            approved = approval_svc.decide(incident_id, existing_id, decision, actor_verified, comment, recommendation_id=recommendation.recommendation_id)
+        except ApprovalError as ex:
+            # A finalized (APPROVED/REJECTED) approval, an ID mismatch, or
+            # an invalid decision is a client-state conflict, not a server
+            # crash — return a safe, structured 409 instead of a 500.
+            raise HTTPException(status_code=409, detail=str(ex))
         return JSONResponse(content=approved.model_dump())
 
 
@@ -202,11 +266,23 @@ def post_action(incident_id: str, body: Dict[str, Any], request: Request):
     auth_svc = get_auth_service(request)
     try:
         user = auth_svc.verify_token(id_token)
-    except ExpiredTokenError:
+    except ExpiredTokenError as ex:
+        try:
+            print(f"[AUTH] Expired token during verify: {str(ex)}")
+        except Exception:
+            pass
         raise HTTPException(status_code=401, detail="Expired token")
-    except InvalidTokenError:
+    except InvalidTokenError as ex:
+        try:
+            print(f"[AUTH] Invalid token during verify: {str(ex)}")
+        except Exception:
+            pass
         raise HTTPException(status_code=401, detail="Invalid token")
-    except Exception:
+    except Exception as ex:
+        try:
+            print(f"[AUTH] Token verification failed: {str(ex)}")
+        except Exception:
+            pass
         raise HTTPException(status_code=401, detail="Token verification failed")
 
     # Authorization: ensure user is allowed to execute approved actions
@@ -292,30 +368,57 @@ def post_action(incident_id: str, body: Dict[str, Any], request: Request):
 
 
 @router.get("/incidents/{incident_id}/outcome")
-def get_outcome(incident_id: str):
-    data = get_primary_scenario()
-    if not data or data.get("incident_id") != incident_id:
+def get_outcome(incident_id: str, inc_repo=Depends(get_incident_repo)):
+    incident = inc_repo.get_incident(incident_id)
+    if not incident:
         raise HTTPException(status_code=404, detail="incident not found")
-    return JSONResponse(content={"outcome": data.get("outcome")})
+    return JSONResponse(content={"outcome": incident.get("outcome")})
 
 
 @router.post("/incidents/{incident_id}/challenge")
-def post_challenge(incident_id: str, body: Dict[str, Any]):
-    data = get_primary_scenario()
-    if not data or data.get("incident_id") != incident_id:
+def post_challenge(
+    incident_id: str,
+    body: Dict[str, Any],
+    request: Request,
+    inc_repo=Depends(get_incident_repo),
+    ev_repo=Depends(get_evidence_repo),
+    au_repo=Depends(get_audit_repo),
+    te_repo=Depends(get_telemetry_repo),
+    st_repo=Depends(get_storage_repo),
+):
+    """Trigger a real, live ADK + Gemini/Vertex AI Critic challenge against
+    the current investigation state (RootOrchestrator: Evidence -> WHY ->
+    Critic -> at most one targeted retrieval -> revised WHY). This mutates
+    persisted Firestore state and makes a billed Vertex AI call, so it
+    requires authentication — any authenticated engineer may challenge the
+    AI (this is a non-destructive analysis step, not an industrial action
+    or approval decision, so it does not require the reliability_engineer
+    role).
+    """
+    incident = inc_repo.get_incident(incident_id)
+    if not incident:
         raise HTTPException(status_code=404, detail="incident not found")
-    # Return a fixture-shaped CriticFinding minimal response
-    cf = {
-        "critic_id": "CRITIC-2026-001",
-        "target_hypothesis_id": "HYP-01",
-        "run_timestamp": "2026-09-22T14:52:10Z",
-        "contradictions": [
-            {"point": "Sensor fault contradicted by physics", "conflicting_evidence_id": "EV-1041", "rationale": "Multi-channel lockstep"}
-        ],
-        "ignored_evidence": [],
-        "falsification_condition": "Dial runout < 0.02 mm",
-        "strongest_discriminating_check": "Dial indicator or laser runout measurement",
-        "recommendation_action": "PROCEED_TO_SIMULATION",
-        "confidence_delta": -0.03,
-    }
-    return JSONResponse(content=cf)
+
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    id_token = auth_header.split(" ", 1)[1].strip()
+    auth_svc = get_auth_service(request)
+    try:
+        auth_svc.verify_token(id_token)
+    except ExpiredTokenError:
+        raise HTTPException(status_code=401, detail="Expired token")
+    except InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token verification failed")
+
+    from ..services.investigation_service import run_live_critic_challenge, LiveInvestigationError
+
+    try:
+        result = run_live_critic_challenge(incident_id, inc_repo, ev_repo, au_repo, te_repo, st_repo)
+    except LiveInvestigationError as ex:
+        # Do not fall back to fabricated data; surface a safe, explicit error.
+        raise HTTPException(status_code=502, detail=f"Live investigation unavailable: {ex}")
+
+    return JSONResponse(content=result["critic_finding"])

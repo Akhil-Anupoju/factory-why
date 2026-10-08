@@ -74,6 +74,46 @@ def test_more_evidence_blocks_action():
         pass
 
 
+def test_more_evidence_requested_is_not_terminal_can_still_approve():
+    # Regression test: MORE_EVIDENCE_REQUESTED must NOT permanently lock the
+    # approval record. The engineer must be able to Approve/Reject (or
+    # request evidence again) after reviewing additional evidence.
+    inc, ev, au, te, st, svc = make_env()
+    dec = DecisionService(inc, svc, au)
+    rec = dec.recommend("INC-2026-0827", SimulationParameters())
+
+    appr = ApprovalService(inc, au)
+    ar = appr.request_approval("INC-2026-0827", rec, actor="eng-evidence")
+    appr.decide("INC-2026-0827", ar.approval_id, "MORE_EVIDENCE_REQUESTED", actor="eng-evidence")
+
+    # Must not raise — this previously crashed with ApprovalError("Approval already finalized")
+    decided = appr.decide("INC-2026-0827", ar.approval_id, "APPROVED", actor="eng-evidence")
+    assert decided.decision == "APPROVED"
+
+    # Now it IS terminal — a second decide() must raise ApprovalError
+    try:
+        appr.decide("INC-2026-0827", ar.approval_id, "REJECTED", actor="eng-evidence")
+        assert False, "APPROVED must remain terminal"
+    except ApprovalError:
+        pass
+
+
+def test_approved_is_terminal_rejected_is_terminal():
+    inc, ev, au, te, st, svc = make_env()
+    dec = DecisionService(inc, svc, au)
+    rec = dec.recommend("INC-2026-0827", SimulationParameters())
+
+    appr = ApprovalService(inc, au)
+    ar = appr.request_approval("INC-2026-0827", rec, actor="eng-terminal")
+    appr.decide("INC-2026-0827", ar.approval_id, "REJECTED", actor="eng-terminal")
+
+    try:
+        appr.decide("INC-2026-0827", ar.approval_id, "APPROVED", actor="eng-terminal")
+        assert False, "REJECTED must remain terminal"
+    except ApprovalError:
+        pass
+
+
 def test_no_approval_blocks_action():
     inc, ev, au, te, st, svc = make_env()
     dec = DecisionService(inc, svc, au)
