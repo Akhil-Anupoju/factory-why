@@ -2,10 +2,12 @@ import React from 'react';
 import { AlertTriangle, ArrowRight, CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react';
 import { InvestigationCase } from '../types';
 import { approvalDecisionLabel } from '../approvalDecisionLabel';
+import { investigationNextStep } from '../investigationNextStep';
 
 interface SituationBriefProps {
   currentCase: InvestigationCase;
   onNextStep?: () => void;
+  demoMode?: boolean;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -16,7 +18,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   pressure: 'Hydraulic pressure',
 };
 
-export const SituationBrief: React.FC<SituationBriefProps> = ({ currentCase, onNextStep }) => {
+export const SituationBrief: React.FC<SituationBriefProps> = ({ currentCase, onNextStep, demoMode = false }) => {
   const channels = Object.entries(currentCase.telemetry_summary || {})
     .map(([key, value]) => ({ key, ...value }))
     .filter((channel) => Math.abs(channel.delta_pct) > 0)
@@ -27,20 +29,19 @@ export const SituationBrief: React.FC<SituationBriefProps> = ({ currentCase, onN
   const hasCriticalSignal = Object.values(currentCase.telemetry_summary || {}).some((channel) => channel.status === 'CRITICAL');
   const hasWarningSignal = Object.values(currentCase.telemetry_summary || {}).some((channel) => channel.status === 'WARNING');
   const severity = hasCriticalSignal ? 'High severity' : hasWarningSignal ? 'Elevated' : 'Nominal';
-  const approved = currentCase.approval?.decision === 'APPROVED';
   const hasOutcome = !!currentCase.outcome;
-  const nextStep = hasOutcome
-    ? 'Investigation resolved. Review the confirmed outcome.'
-    : approved
-    ? 'Action authorized. Follow its execution and outcome.'
-    : currentCase.recommendation?.next_step || 'Analysis is still in progress.';
-  const nextButton = hasOutcome ? 'View outcome' : approved ? 'View action' : 'Review recommended action';
+  const nextStep = investigationNextStep(currentCase);
+  const briefTitle = hasOutcome ? (demoMode ? 'Demo outcome revealed' : 'Investigation resolved') : `Investigate ${currentCase.asset.asset_id}`;
+  const outcomeStatus = demoMode ? 'Simulated outcome' : 'Resolved';
+  const nextStepDescription = demoMode && currentCase.approval?.decision === 'APPROVED' && !hasOutcome
+    ? 'A demo decision was recorded in this browser. Review the simulated action and outcome.'
+    : nextStep.description;
 
   return (
     <section className="fw-brief" aria-labelledby="fw-brief-heading">
       <div className="fw-brief-main">
         <div className="fw-brief-eyebrow">
-          <span className="fw-live-indicator" aria-hidden="true" />
+          {demoMode ? <span className="fw-demo-badge">DEMO-ONLY · SAMPLE EVIDENCE</span> : <span className="fw-live-indicator" aria-hidden="true" />}
           <span>INCIDENT {currentCase.incident_id}</span>
           <span className="fw-eyebrow-divider" aria-hidden="true" />
           <span>ASSET {currentCase.asset.asset_id}</span>
@@ -49,13 +50,13 @@ export const SituationBrief: React.FC<SituationBriefProps> = ({ currentCase, onN
         <div className="flex flex-wrap items-start justify-between gap-3 mt-5">
           <div>
             <h1 id="fw-brief-heading" className="fw-brief-title">
-              {hasOutcome ? 'Investigation resolved' : `Investigate ${currentCase.asset.asset_id}`}
+              {briefTitle}
             </h1>
             <p className="fw-brief-subtitle">{currentCase.asset.name} <span aria-hidden="true">·</span> Health score {currentCase.asset.health_score}%</p>
           </div>
           <span className={`fw-severity ${hasCriticalSignal ? 'fw-severity--high' : hasWarningSignal ? 'fw-severity--elevated' : 'fw-severity--nominal'}`}>
             {hasOutcome ? <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> : <AlertTriangle className="w-4 h-4" aria-hidden="true" />}
-            {hasOutcome ? 'Resolved' : severity}
+            {hasOutcome ? outcomeStatus : severity}
           </span>
         </div>
 
@@ -83,14 +84,14 @@ export const SituationBrief: React.FC<SituationBriefProps> = ({ currentCase, onN
           <span className="fw-brief-label">NEXT IN THE INVESTIGATION</span>
           <span className="fw-next-action-index">→</span>
         </div>
-        <p className="fw-next-action-copy">{nextStep}</p>
+        <p className="fw-next-action-copy">{nextStepDescription}</p>
         <div className="fw-next-action-meta">
           <div><span>{hasOutcome ? 'Cause status' : 'Hypothesis score'}</span><strong>{hasOutcome ? 'Confirmed' : confidence === null ? 'Pending' : `${confidence}%`}</strong></div>
-          <div><span>Human decision</span><strong>{approvalDecisionLabel(currentCase.approval?.decision)}</strong></div>
+          <div><span>{demoMode ? 'Demo decision' : 'Human decision'}</span><strong>{approvalDecisionLabel(currentCase.approval?.decision)}</strong></div>
         </div>
-        {onNextStep && currentCase.recommendation && (
+        {onNextStep && (
           <button type="button" onClick={onNextStep} className="fw-next-action-button">
-            {nextButton}<ArrowRight className="w-4 h-4" aria-hidden="true" />
+            {nextStep.buttonLabel}<ArrowRight className="w-4 h-4" aria-hidden="true" />
           </button>
         )}
       </aside>

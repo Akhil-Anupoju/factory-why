@@ -28,6 +28,7 @@ import { fetchIncident, postApproval, postAction, fetchOutcome, postChallenge } 
 import { ApiError } from './api/apiClient';
 import { useAuth } from './auth/AuthContext';
 import { approvalDecisionLabel } from './approvalDecisionLabel';
+import { investigationNextStep } from './investigationNextStep';
 import LoginPage from './pages/LoginPage';
 import { applyTheme, readStoredTheme, saveTheme, type Theme } from './theme';
 import createInvestigationStream from './api/streamApi';
@@ -92,6 +93,7 @@ export default function App() {
   const [isLiveAnalyzing, setIsLiveAnalyzing] = useState<boolean>(false);
   const auth = useAuth();
   const useClientDemoActions = usingMock || (!isLiveRuntime() && auth.isLocalDemoUser);
+  const nextInvestigationStep = investigationNextStep(currentCase);
 
   // TopBar now consumes Auth context directly — no DOM wiring required here.
 
@@ -133,6 +135,7 @@ export default function App() {
       loadIncident('INC-2026-0827', fallback);
     } else {
       setCurrentCase(JSON.parse(JSON.stringify(SCENARIO_LUBRICATION)));
+      setUsingMock(true);
     }
     setSelectedComponentId(null);
     setDemoStep(1);
@@ -145,6 +148,16 @@ export default function App() {
   const loadIncident = async (incidentId: string, fallbackToMock = false) => {
     setLoading(true);
     setError(null);
+    // A local account is a demo identity, not a Firebase identity. Keep its
+    // entire investigation on sample data so server evidence cannot be mixed
+    // with browser-only approvals or actions.
+    if (auth.isLocalDemoUser && !isLiveRuntime()) {
+      setCurrentCase(JSON.parse(JSON.stringify(PRIMARY_SCENARIO_CNC04)));
+      setUsingMock(true);
+      setStreamState('idle');
+      setLoading(false);
+      return;
+    }
     // Ensure we start each load assuming live data (no demo)
     setUsingMock(false);
     try {
@@ -401,15 +414,23 @@ export default function App() {
     setError(null);
     const timestamp = new Date().toISOString();
 
-    // Local accounts have no Firebase token. Keep their decisions in the
-    // browser even when the public incident GET succeeded against the API.
+    if (decision === 'CHALLENGE' && useClientDemoActions) {
+      // Sample Critic findings are already present. Never imply that a local
+      // demo account triggered a live ADK challenge or an approval decision.
+      focusStage('critic', 'critic');
+      return;
+    }
+
+    // Demo investigations contain sample evidence and browser-only decisions.
+    // No local decision is sent to an approval or action endpoint.
     if (useClientDemoActions) {
       if (decision === 'APPROVED') {
         // preserve existing demo flow (client-side action creation)
+        const demoApprovalId = `DEMO-APPROVED-${Date.now()}`;
         const generatedAction: ActionRecord = {
-          action_id: `ACT-${Date.now()}`,
+          action_id: `DEMO-ACT-${Date.now()}`,
           incident_id: currentCase.incident_id,
-          approval_id: `APP-APPROVED-${Date.now()}`,
+          approval_id: demoApprovalId,
           task_type: 'NON_DESTRUCTIVE_LASER_RUNOUT_INSPECTION',
           task_number: 'TASK-2026-0922-01',
           assigned_technician: 'D. Miller (Shift B Lead Tech)',
@@ -434,10 +455,13 @@ export default function App() {
           ...prev,
           approval: {
             ...prev.approval,
+            approval_id: demoApprovalId,
             decision: 'APPROVED',
             comment,
             timestamp,
-            signature_hash: 'SHA256:8f4c2e91a0b3...'
+            engineer_name: auth.user?.displayName || 'Local demo operator',
+            engineer_role: 'Demo operator',
+            signature_hash: ''
           },
           action: generatedAction,
           // preserve demo audit additions
@@ -670,7 +694,7 @@ export default function App() {
 
     // Auto-progress actions on certain beats
     const safeApproval = currentCase?.approval || ({} as any);
-    if (stepNumber === 8 && safeApproval.decision !== 'APPROVED') {
+    if (useClientDemoActions && stepNumber === 8 && safeApproval.decision !== 'APPROVED') {
       handleApprovalDecision('APPROVED', 'Demo Walkthrough: Approved for immediate laser runout diagnostic inspection.');
     }
   };
@@ -711,7 +735,7 @@ export default function App() {
       }, 5000);
     }
     return () => clearTimeout(timer);
-  }, [isDemoPlaying, demoStep, auth.loading, auth.isAuthenticated]);
+  }, [isDemoPlaying, demoStep, auth.loading, auth.isAuthenticated, auth.isLocalDemoUser]);
 
   // Gate: auth-loading -> loading banner, unauthenticated -> LoginPage, authenticated -> app
   if (auth.loading) {
@@ -728,6 +752,10 @@ export default function App() {
     return <LoginPage theme={theme} onToggleTheme={toggleTheme} />;
   }
 
+  if (auth.isLocalDemoUser && !isLiveRuntime() && !usingMock) {
+    return <div className="fw-app min-h-screen flex items-center justify-center text-slate-700" role="status">Preparing the demo investigation…</div>;
+  }
+
   return (
     <div className="fw-app min-h-screen text-slate-900 flex flex-col font-sans selection:bg-teal-500/25 selection:text-teal-950 overflow-x-hidden">
       
@@ -735,6 +763,7 @@ export default function App() {
       <TopBar
         currentCase={currentCase}
         activeScenarioId={activeScenarioId}
+        demoMode={useClientDemoActions}
         onSelectScenario={handleSelectScenario}
         onResetCase={handleResetCase}
         onOpenEvaluationSuite={() => setIsEvaluationSuiteOpen(true)}
@@ -804,19 +833,13 @@ export default function App() {
           </div>
         )}
 
-        {!loading && usingMock && !error && (
-          <div className="flex items-center gap-3 bg-slate-200/60 border border-slate-300 rounded p-2 text-slate-800" role="status">
-            <Info className="w-5 h-5 text-slate-700" aria-hidden />
+        {!loading && useClientDemoActions && !error && (
+          <div className="fw-demo-notice flex items-start gap-3 rounded p-3" role="status">
+            <Info className="w-5 h-5 shrink-0" aria-hidden />
             <div className="text-sm">
-              <span className="font-medium">Demo data</span>
-              <span className="text-slate-600"> — Using the local scenario for offline/demo purposes.</span>
+              <strong className="block">Demo-only investigation</strong>
+              <span>All evidence shown here is sample data. Decisions and actions stay in this browser; local approval is never server authorization or a real dispatch. Sign in with Google or GitHub and load the live incident for server-backed decisions.</span>
             </div>
-          </div>
-        )}
-        {!loading && auth.isLocalDemoUser && !isLiveRuntime() && !error && (
-          <div className="flex items-center gap-3 bg-sky-50 border border-sky-200 rounded p-2 text-sky-950" role="status">
-            <Info className="w-5 h-5 text-sky-700 shrink-0" aria-hidden />
-            <div className="text-sm">Local demo account: approvals and actions stay in this browser. Sign in with Google or GitHub for server-backed decisions.</div>
           </div>
         )}
       </div>
@@ -827,9 +850,8 @@ export default function App() {
         {/* Executive Situation Brief — 5-10 second summary synthesized from live data */}
         <SituationBrief
           currentCase={currentCase}
-          onNextStep={() => currentCase.outcome || currentCase.approval?.decision === 'APPROVED'
-            ? focusStage('outcome', 'outcome')
-            : focusStage('approve', 'approval')}
+          demoMode={useClientDemoActions}
+          onNextStep={() => focusStage(nextInvestigationStep.stage, nextInvestigationStep.anchor)}
         />
 
         <div className="fw-workflow-overview">
@@ -926,6 +948,9 @@ export default function App() {
             criticFinding={currentCase.critic_finding}
             leadingHypothesisTitle={currentCase.hypotheses[0]?.title || 'Bearing Misalignment'}
             onEvidenceClick={handleEvidenceClick}
+            onChallenge={() => handleApprovalDecision('CHALLENGE', 'Challenge the leading hypothesis with the live Critic.')}
+            challengeAvailable={!useClientDemoActions && !auth.isLocalDemoUser}
+            isChallenging={isLiveAnalyzing}
             onChallengeComplete={() => focusStage('simulate', 'simulation')}
           />
         </StageSection>

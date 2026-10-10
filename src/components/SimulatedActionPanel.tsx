@@ -38,7 +38,7 @@ export const SimulatedActionPanel: React.FC<SimulatedActionPanelProps> = ({
           </div>
           <div className="min-w-0">
             <span className="text-xs font-bold font-mono text-slate-600 uppercase tracking-wide block truncate">
-              Approved action
+              {demoMode ? 'Demo action' : 'Approved action'}
             </span>
             <p className="text-[11px] text-slate-500 font-mono mt-0.5 break-anywhere">
               Review and approve the recommendation to unlock this step.
@@ -63,10 +63,10 @@ export const SimulatedActionPanel: React.FC<SimulatedActionPanelProps> = ({
           </div>
           <div>
             <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
-              Approved action
+              {demoMode ? 'Simulated action · browser only' : 'Approved action'}
             </h2>
             <div className="text-[11px] text-cyan-700 font-mono">
-              Work order: <span className="font-bold">{action?.task_number || 'Awaiting dispatch'}</span>
+              {demoMode ? 'Sample work order:' : 'Work order:'} <span className="font-bold">{action?.task_number || 'Awaiting dispatch'}</span>
             </div>
           </div>
         </div>
@@ -94,7 +94,7 @@ export const SimulatedActionPanel: React.FC<SimulatedActionPanelProps> = ({
           <div className="min-w-0">
             <span className="text-[10px] text-slate-600 uppercase flex items-center gap-1">
               <Clock className="w-3 h-3 text-cyan-600 shrink-0" />
-              Dispatched at
+              {demoMode ? 'Demo timestamp' : 'Dispatched at'}
             </span>
             <div className="text-amber-700 font-bold mt-0.5 break-anywhere">
               {action.dispatched_at}

@@ -8,6 +8,7 @@ import { ThemeToggle } from './ThemeToggle';
 interface TopBarProps {
   currentCase: InvestigationCase;
   activeScenarioId: string;
+  demoMode?: boolean;
   onSelectScenario: (scenarioId: string) => void;
   onResetCase: () => void;
   onOpenEvaluationSuite: () => void;
@@ -21,6 +22,7 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({
   currentCase,
   activeScenarioId,
+  demoMode = false,
   onSelectScenario,
   onResetCase,
   onOpenEvaluationSuite,
@@ -31,13 +33,15 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleTheme,
 }) => {
   const auth = useAuth();
-  const caseStatus = currentCase.outcome
-    ? { label: 'Resolved', tone: 'resolved' }
-    : currentCase.action
-    ? { label: 'Action dispatched', tone: 'active' }
-    : currentCase.approval?.decision === 'APPROVED'
-    ? { label: 'Authorized', tone: 'active' }
-    : { label: 'Investigating', tone: 'investigating' };
+  const caseStatus = demoMode
+    ? { label: 'Demo only', tone: 'demo' }
+    : currentCase.outcome
+      ? { label: 'Resolved', tone: 'resolved' }
+      : currentCase.action
+        ? { label: 'Action dispatched', tone: 'active' }
+        : currentCase.approval?.decision === 'APPROVED'
+          ? { label: 'Authorized', tone: 'active' }
+          : { label: 'Investigating', tone: 'investigating' };
 
   return (
     <header className="fw-topbar sticky top-0 z-30">

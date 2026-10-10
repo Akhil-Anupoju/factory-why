@@ -20,10 +20,7 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
   onEvidenceClick,
 }) => {
   return (
-    <div id="recommendation" className="fw-panel bg-white border border-cyan-500/40 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 relative overflow-hidden w-full min-w-0">
-      {/* Visual Accent */}
-      <div className="absolute top-0 right-0 w-48 h-24 bg-cyan-500/10 rounded-full blur-xl pointer-events-none" />
-
+    <div id="recommendation" className="fw-panel bg-white border border-cyan-500/40 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">

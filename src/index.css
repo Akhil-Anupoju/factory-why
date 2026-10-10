@@ -217,6 +217,22 @@
 .fw-panel button:focus-visible, .fw-stage-trigger:focus-visible { outline: 2px solid var(--fw-phase); outline-offset: 2px; }
 .fw-panel button:not(:disabled) { transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease; }
 .fw-panel button:not(:disabled):active { transform: scale(.98); }
+
+.fw-demo-notice { border: 1px solid #b98c47; background: #fff8e8; color: #51391b; }
+.fw-demo-notice svg { color: #9a681f; }
+.fw-demo-badge { border: 1px solid #b98c47; border-radius: .35rem; padding: .25rem .45rem; background: #fff2d6; color: #714916; white-space: nowrap; }
+.fw-case-status--demo { background: #fff2d6; color: #714916; }
+.fw-brief-eyebrow { flex-wrap: wrap; }
+
+.fw-critic { background: #fffdf9; }
+.fw-critic-note { background: #fff7e8; }
+.fw-critic-card { background: #f5f8f7; }
+.fw-critic-detail { background: #fff; }
+.fw-critic-challenge { border: 1px solid #b77f2d; background: #fbecd0; color: #654010; }
+.fw-critic-challenge:not(:disabled):hover { background: #f5dfb4; }
+.fw-critic-challenge:disabled { cursor: not-allowed; opacity: .55; }
+.fw-critic-continue { border: 1px solid #cbd8d3; background: #edf4f0; color: #274b42; }
+.fw-critic-continue:hover { background: #e0eee7; }
 .fw-asset-overview { padding: 1rem; border-radius: .8rem; background: linear-gradient(125deg, #eff8f3, #f8fbf9 68%); }
 .fw-asset-overview [class*="text-xl"] { font-size: 1.65rem; letter-spacing: -.05em; }
 .fw-machine-map { padding: .85rem; border-radius: .8rem; background-color: #f8fbf9; background-image: linear-gradient(rgba(18, 98, 89, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(18, 98, 89, .035) 1px, transparent 1px); background-size: 18px 18px; }
@@ -326,6 +342,18 @@ html[data-theme="dark"] .fw-stage-status--available { background: #2b4045; color
 html[data-theme="dark"] .fw-stage-status--current { background: #1b453c; color: #9cebd1; }
 html[data-theme="dark"] .fw-stage-status--locked, html[data-theme="dark"] .fw-stage-status--pending { background: #2a3940; color: #b1c0c1; }
 html[data-theme="dark"] .fw-stage .fw-panel { border-color: #40515a; background: #25323b; box-shadow: 0 6px 20px rgba(0, 0, 0, .11); }
+html[data-theme="dark"] .fw-demo-notice { border-color: #8f7042; background: #342d25; color: #f1d7a8; }
+html[data-theme="dark"] .fw-demo-notice svg { color: #e7bb76; }
+html[data-theme="dark"] .fw-demo-badge { border-color: #8f7042; background: #493822; color: #f7d99c; }
+html[data-theme="dark"] .fw-case-status--demo { background: #493822; color: #f7d99c; }
+html[data-theme="dark"] .fw-stage .fw-critic { border-color: #705b43; background: #222d34; box-shadow: none; }
+html[data-theme="dark"] .fw-critic-note { border-color: #75603d; background: #38342d; }
+html[data-theme="dark"] .fw-critic-card { border-color: #43545b; background: #28363e; }
+html[data-theme="dark"] .fw-critic-detail { background: #223039; }
+html[data-theme="dark"] .fw-critic-challenge { border-color: #9d7b49; background: #4d3c27; color: #ffe0a3; }
+html[data-theme="dark"] .fw-critic-challenge:not(:disabled):hover { background: #5d492e; }
+html[data-theme="dark"] .fw-critic-continue { border-color: #4b655c; background: #2b403a; color: #c4e9d8; }
+html[data-theme="dark"] .fw-critic-continue:hover { background: #355048; }
 html[data-theme="dark"] .fw-asset-overview { border-color: #40544d; background: linear-gradient(125deg, #2a403c, #293940 70%); }
 html[data-theme="dark"] .fw-machine-map { border-color: #3a5157; background-color: #17282f; background-image: linear-gradient(rgba(139, 219, 194, .055) 1px, transparent 1px), linear-gradient(90deg, rgba(139, 219, 194, .055) 1px, transparent 1px); }
 html[data-theme="dark"] .fw-signal-insight { border-color: #49655b; background: linear-gradient(105deg, #29433d, #29383e 75%); }

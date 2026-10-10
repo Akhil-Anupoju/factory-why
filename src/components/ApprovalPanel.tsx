@@ -33,7 +33,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
   // that clicking one button only shows that button's loading state — the
   // other three remain disabled (to prevent conflicting concurrent
   // decisions) but keep their normal label.
-  type BusyAction = 'APPROVED' | 'REJECTED' | 'REQUEST_MORE_EVIDENCE' | 'CHALLENGE' | 'PENDING' | null;
+  type BusyAction = 'APPROVED' | 'REJECTED' | 'REQUEST_MORE_EVIDENCE' | 'CHALLENGE' | null;
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
   const busy = busyAction !== null;
   const runDecision = async (action: Exclude<BusyAction, null>, decision: ApprovalDecision, commentText: string, after?: () => void) => {
@@ -48,6 +48,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
   };
   const safeApproval = approval || ({} as any);
   const isApproved = safeApproval.decision === 'APPROVED';
+  const isRejected = safeApproval.decision === 'REJECTED';
   // show a subtle hint when SSE indicates awaiting approval
   // the parent App will set approval.decision appropriately; keep UI unchanged here
 
@@ -66,7 +67,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
                 Review and sign off
               </h2>
               <div className="text-[11px] text-slate-600 font-mono">
-                Status: <span className={isApproved ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>
+                {demoMode ? 'Demo status:' : 'Status:'} <span className={isApproved ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>
                   {approvalDecisionLabel(safeApproval.decision)}
                 </span>
               </div>
@@ -87,7 +88,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
       <div className="bg-slate-50/80 border border-slate-200 rounded p-2.5 text-xs text-slate-700 font-mono flex items-start gap-2 w-full min-w-0">
         <AlertCircle className="w-4 h-4 text-cyan-600 mt-0.5 shrink-0" />
         <div className="break-anywhere">
-          <span className="text-cyan-700 font-bold">Human decision required:</span> review the recommendation before unlocking the next action.
+          <span className="text-cyan-700 font-bold">{demoMode ? 'Browser-only demo decision:' : 'Human decision required:'}</span> {demoMode ? 'This sign-off is a local simulation. It does not authorize a server action or dispatch.' : 'Review the recommendation before unlocking the next action.'}
         </div>
       </div>
 
@@ -100,10 +101,10 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
             </div>
             <div className="min-w-0">
               <span className="text-xs font-bold font-mono text-emerald-700 uppercase block">
-                {demoMode ? `Demo action approved by ${operatorName || 'local user'}` : `Action Formally Authorized by ${approval.engineer_name}`}
+                {demoMode ? `Demo decision by ${operatorName || 'local user'}` : `Action Formally Authorized by ${approval.engineer_name}`}
               </span>
               <p className="text-[11px] text-slate-700 mt-0.5 font-mono break-anywhere">
-                {demoMode ? 'The simulated action is ready to review in this browser.' : 'Work Order Action Agent is unlocked. Dispatching maintenance procedure now.'}
+                {demoMode ? 'This local simulation is ready to review. No server approval or real dispatch was created.' : 'Work Order Action Agent is unlocked. Dispatching maintenance procedure now.'}
               </p>
               {approval.comment && (
                 <div className="text-[11px] text-emerald-800 mt-1 italic break-anywhere">
@@ -113,14 +114,13 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
             </div>
           </div>
 
-            <button
-              onClick={() => runDecision('PENDING', 'PENDING', 'Re-evaluate requested')}
-              disabled={busy}
-              aria-disabled={busy}
-              className={`text-xs ${busy ? 'opacity-60 cursor-not-allowed' : 'hover:text-slate-900 underline'} text-slate-600 font-mono shrink-0 self-start sm:self-auto whitespace-nowrap`}
-            >
-              {busyAction === 'PENDING' ? 'Processing…' : 'Revoke / Re-evaluate'}
-            </button>
+            <span className="text-xs text-slate-600 font-mono shrink-0">Final decision</span>
+        </div>
+      ) : isRejected ? (
+        <div className="p-3 bg-rose-50 border border-rose-300 rounded-lg text-xs text-rose-800">
+          <strong className="block font-mono uppercase">Action rejected</strong>
+          <p className="mt-1">No action is authorized for this recommendation. Review the decision record before reassessing the options.</p>
+          {approval.comment && <p className="mt-2 italic">Engineer note: “{approval.comment}”</p>}
         </div>
       ) : (
         <div className="space-y-3 w-full min-w-0">
@@ -148,7 +148,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
               className={`px-2.5 sm:px-3 py-2 min-w-0 bg-emerald-600 text-white border border-emerald-600 font-bold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 ${busy ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-700'}`}
             >
               <Check className="w-4 h-4 shrink-0" />
-              <span className="truncate whitespace-nowrap">{busyAction === 'APPROVED' ? 'Approving…' : 'Approve Action'}</span>
+              <span className="truncate whitespace-nowrap">{busyAction === 'APPROVED' ? 'Approving…' : demoMode ? 'Simulate approval' : 'Approve Action'}</span>
             </button>
 
             {/* 2. REJECT */}
@@ -181,7 +181,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
               className={`px-2.5 sm:px-3 py-2 min-w-0 bg-amber-50 text-amber-800 border border-amber-300 font-semibold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5 ${busy ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-100'}`}
             >
               <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-              <span className="truncate whitespace-nowrap">{busyAction === 'CHALLENGE' ? 'Challenging…' : 'Challenge theory'}</span>
+              <span className="truncate whitespace-nowrap">{busyAction === 'CHALLENGE' ? 'Challenging…' : demoMode ? 'View sample critique' : 'Challenge theory'}</span>
             </button>
           </div>
         </div>

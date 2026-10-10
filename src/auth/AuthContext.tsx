@@ -25,12 +25,10 @@ interface AuthContextValue {
   signIn: () => Promise<void>;
   // Optional: Facebook sign-in
   signInFacebook?: () => Promise<void>;
-  // Optional: Apple sign-in (may be unavailable if Firebase not configured for Apple)
-  signInApple?: () => Promise<void>;
   signInLocal: (email: string, password: string) => Promise<{ uid: string; email: string; displayName: string }>;
   signUpLocal: (email: string, password: string, displayName?: string) => Promise<{ uid: string; email: string; displayName: string }>;
   signOut: () => Promise<void>;
-  getIdToken: () => Promise<string | null>;
+  getIdToken: (force?: boolean) => Promise<string | null>;
   // whether Firebase frontend SDK is available/configured in this environment
   firebaseAvailable: boolean;
 }
