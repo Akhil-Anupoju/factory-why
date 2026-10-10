@@ -11,17 +11,22 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { ApprovalRecord, ApprovalDecision } from '../types';
+import { approvalDecisionLabel } from '../approvalDecisionLabel';
 
 interface ApprovalPanelProps {
   approval: ApprovalRecord;
   onDecision: (decision: ApprovalDecision, comment: string) => void;
   onChallengeClick: () => void;
+  demoMode?: boolean;
+  operatorName?: string | null;
 }
 
 export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
   approval,
   onDecision,
   onChallengeClick,
+  demoMode = false,
+  operatorName,
 }) => {
   const [comment, setComment] = useState('');
   // Track WHICH specific action is in flight (not a single shared flag) so
@@ -47,7 +52,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
   // the parent App will set approval.decision appropriately; keep UI unchanged here
 
   return (
-    <div id="approval" className="bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
+    <div id="approval" className="fw-panel bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -58,11 +63,11 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
           )}
             <div className="min-w-0">
               <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
-                Human-in-the-Loop Safety Gate & Authorization
+                Review and sign off
               </h2>
               <div className="text-[11px] text-slate-600 font-mono">
                 Status: <span className={isApproved ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>
-                  {safeApproval.decision || 'PENDING'}
+                  {approvalDecisionLabel(safeApproval.decision)}
                 </span>
               </div>
             </div>
@@ -71,10 +76,10 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
         {/* Authenticated Engineer Badge */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-slate-50 px-2.5 py-1 rounded border border-slate-200 text-xs font-mono min-w-0 max-w-full sm:max-w-[60%]">
           <UserCheck className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
-          <span className="text-slate-600 shrink-0">Authenticated:</span>
-          <span className="text-slate-900 font-semibold truncate min-w-0" title={safeApproval.engineer_name || ''}>{safeApproval.engineer_name || '—'}</span>
-          <span className="text-slate-400 hidden xs:inline shrink-0">·</span>
-          <span className="text-slate-600 text-[10px] truncate min-w-0">{safeApproval.engineer_role || ''}</span>
+          <span className="text-slate-600 shrink-0">{demoMode ? 'Demo operator:' : 'Authenticated:'}</span>
+          <span className="text-slate-900 font-semibold truncate min-w-0" title={demoMode ? operatorName || '' : safeApproval.engineer_name || ''}>{demoMode ? operatorName || 'Local user' : safeApproval.engineer_name || '—'}</span>
+          {!demoMode && <span className="text-slate-400 hidden xs:inline shrink-0">·</span>}
+          {!demoMode && <span className="text-slate-600 text-[10px] truncate min-w-0">{safeApproval.engineer_role || ''}</span>}
         </div>
       </div>
 
@@ -82,7 +87,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
       <div className="bg-slate-50/80 border border-slate-200 rounded p-2.5 text-xs text-slate-700 font-mono flex items-start gap-2 w-full min-w-0">
         <AlertCircle className="w-4 h-4 text-cyan-600 mt-0.5 shrink-0" />
         <div className="break-anywhere">
-          <span className="text-cyan-700 font-bold">RESPONSIBLE AI CONTROL BOUNDARY:</span> No physical or simulated maintenance work order can be created by the Action Agent without explicit human engineer sign-off.
+          <span className="text-cyan-700 font-bold">Human decision required:</span> review the recommendation before unlocking the next action.
         </div>
       </div>
 
@@ -95,10 +100,10 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
             </div>
             <div className="min-w-0">
               <span className="text-xs font-bold font-mono text-emerald-700 uppercase block">
-                Action Formally Authorized by {approval.engineer_name}
+                {demoMode ? `Demo action approved by ${operatorName || 'local user'}` : `Action Formally Authorized by ${approval.engineer_name}`}
               </span>
               <p className="text-[11px] text-slate-700 mt-0.5 font-mono break-anywhere">
-                Work Order Action Agent is unlocked. Dispatching maintenance procedure now.
+                {demoMode ? 'The simulated action is ready to review in this browser.' : 'Work Order Action Agent is unlocked. Dispatching maintenance procedure now.'}
               </p>
               {approval.comment && (
                 <div className="text-[11px] text-emerald-800 mt-1 italic break-anywhere">
@@ -176,7 +181,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
               className={`px-2.5 sm:px-3 py-2 min-w-0 bg-amber-50 text-amber-800 border border-amber-300 font-semibold text-xs rounded font-mono transition-all flex items-center justify-center gap-1.5 ${busy ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-100'}`}
             >
               <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-              <span className="truncate whitespace-nowrap">{busyAction === 'CHALLENGE' ? 'Challenging…' : 'Challenge AI'}</span>
+              <span className="truncate whitespace-nowrap">{busyAction === 'CHALLENGE' ? 'Challenging…' : 'Challenge theory'}</span>
             </button>
           </div>
         </div>

@@ -23,7 +23,7 @@ export default defineConfig(() => {
       // and does not change production build behavior.
       proxy: {
         '/api': {
-          target: 'http://localhost:8000',
+          target: process.env.FACTORY_WHY_BACKEND_URL || 'http://localhost:8000',
           changeOrigin: true,
           secure: false,
           ws: false,

@@ -8,6 +8,8 @@ interface StageSectionProps {
   index: number;
   title: string;
   status: StageStatus;
+  phase?: 'observe' | 'explain' | 'decide' | 'record';
+  guide?: { meaning: string; explore: string };
   /** One-line summary shown when the section is collapsed (completed/pending/locked). */
   summary?: React.ReactNode;
   /** Short reason shown for locked/pending sections, e.g. "awaiting recommendation". */
@@ -17,30 +19,33 @@ interface StageSectionProps {
   children: React.ReactNode;
 }
 
-const statusChip = (status: StageStatus) => {
+const statusChip = (status: StageStatus, id: string) => {
   switch (status) {
-    case 'completed':
+    case 'completed': {
+      const isRecorded = id === 'approval' || id === 'outcome';
       return (
-        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-emerald-700 bg-emerald-50/60 border border-emerald-300/50 px-1.5 py-0.5 rounded shrink-0">
-          <CheckCircle2 className="w-3 h-3 shrink-0" /> COMPLETED
+        <span className={`fw-stage-status ${isRecorded ? 'fw-stage-status--complete' : 'fw-stage-status--available'}`}>
+          {isRecorded ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <CircleDot className="w-3.5 h-3.5 shrink-0" />}
+          {id === 'approval' ? 'Decision recorded' : id === 'outcome' ? 'Outcome recorded' : 'Ready to review'}
         </span>
       );
+    }
     case 'current':
       return (
-        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-cyan-700 bg-cyan-50/60 border border-cyan-400/60 px-1.5 py-0.5 rounded shrink-0">
-          <CircleDot className="w-3 h-3 shrink-0 animate-pulse" /> CURRENT
+        <span className="fw-stage-status fw-stage-status--current">
+          <CircleDot className="w-3.5 h-3.5 shrink-0" /> Needs attention
         </span>
       );
     case 'locked':
       return (
-        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded shrink-0">
-          <Lock className="w-3 h-3 shrink-0" /> LOCKED
+        <span className="fw-stage-status fw-stage-status--locked">
+          <Lock className="w-3.5 h-3.5 shrink-0" /> Locked
         </span>
       );
     default:
       return (
-        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded shrink-0">
-          PENDING
+        <span className="fw-stage-status fw-stage-status--pending">
+          Pending
         </span>
       );
   }
@@ -58,6 +63,8 @@ export const StageSection: React.FC<StageSectionProps> = ({
   index,
   title,
   status,
+  phase = 'observe',
+  guide,
   summary,
   lockedReason,
   expanded,
@@ -70,45 +77,48 @@ export const StageSection: React.FC<StageSectionProps> = ({
     <section
       id={id}
       aria-label={title}
-      className={`w-full min-w-0 rounded-xl border transition-all duration-150 ${
-        status === 'current'
-          ? 'border-cyan-300 bg-white shadow-md ring-1 ring-cyan-100'
-          : status === 'locked'
-          ? 'border-slate-200 bg-slate-50/60'
-          : 'border-slate-200 bg-white shadow-sm hover:shadow-md'
-      }`}
+      className={`fw-stage fw-stage--${status} w-full min-w-0`}
+      data-phase={phase}
     >
       <button
         type="button"
         onClick={isInteractive ? onToggle : undefined}
         disabled={!isInteractive}
         aria-expanded={expanded}
-        className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-left ${
-          isInteractive ? 'cursor-pointer hover:bg-slate-50 rounded-t-xl' : 'cursor-not-allowed opacity-60 rounded-xl'
-        }`}
+        className={`fw-stage-trigger w-full flex items-center justify-between gap-4 text-left ${isInteractive ? 'cursor-pointer' : 'cursor-not-allowed'}`}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="font-mono text-[11px] text-slate-400 shrink-0 w-5 text-right">{String(index).padStart(2, '0')}</span>
-          <span className={`font-bold font-mono text-xs sm:text-sm uppercase tracking-wide shrink-0 ${status === 'current' ? 'text-cyan-700' : 'text-slate-800'}`}>
-            {title}
-          </span>
-          {statusChip(status)}
-          {!expanded && summary && (
-            <span className="text-[11px] sm:text-xs text-slate-500 font-mono truncate min-w-0 ml-1">{summary}</span>
-          )}
-          {status === 'locked' && lockedReason && (
-            <span className="text-[11px] sm:text-xs text-slate-400 italic truncate min-w-0 ml-1">{lockedReason}</span>
-          )}
+        <div className="flex items-start gap-3 min-w-0">
+          <span className="fw-stage-index shrink-0">{String(index).padStart(2, '0')}</span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="fw-stage-title">{title}</span>
+              {statusChip(status, id)}
+            </div>
+            {!expanded && summary && <div className="fw-stage-summary truncate">{summary}</div>}
+            {status === 'locked' && lockedReason && <div className="fw-stage-summary">{lockedReason}</div>}
+          </div>
         </div>
         {isInteractive && (
-          <span className="shrink-0 text-slate-400">
-            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          <span className="fw-stage-chevron shrink-0">
+            {expanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
           </span>
         )}
       </button>
 
       {expanded && isInteractive && (
-        <div className="px-3.5 sm:px-4 pb-4 pt-1 fw-animate-in">
+        <div className="fw-stage-content fw-animate-in">
+          {guide && (
+            <div className="fw-stage-guide">
+              <div className="fw-stage-guide-item">
+                <span>WHAT THIS SHOWS</span>
+                <p>{guide.meaning}</p>
+              </div>
+              <div className="fw-stage-guide-item fw-stage-guide-item--action">
+                <span>WHAT TO DO</span>
+                <p>{guide.explore}</p>
+              </div>
+            </div>
+          )}
           {children}
         </div>
       )}

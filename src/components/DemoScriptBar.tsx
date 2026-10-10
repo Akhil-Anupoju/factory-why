@@ -57,7 +57,7 @@ export const DEMO_BEATS: DemoBeat[] = [
   {
     id: 5,
     timeRange: '1:20 - 1:40',
-    screenAction: 'Click “What would prove this wrong?”',
+    screenAction: 'Open the challenge to the leading theory',
     narration: '“Now we ask the question we built the product around: what would prove the leading hypothesis wrong?”',
     judgeTakeaway: 'Visible innovation: Self-challenging reasoning',
     targetAnchor: 'critic'
@@ -65,7 +65,7 @@ export const DEMO_BEATS: DemoBeat[] = [
   {
     id: 6,
     timeRange: '1:40 - 2:00',
-    screenAction: 'Show Critic findings & discriminating check',
+    screenAction: 'Review the challenge, then continue to action options',
     narration: '“The critic identifies dial indicator / laser runout measurement (< 0.02 mm) as the single discriminating check.”',
     judgeTakeaway: 'Bounded critique prevents hallucinations',
     targetAnchor: 'critic'
@@ -82,7 +82,7 @@ export const DEMO_BEATS: DemoBeat[] = [
     id: 8,
     timeRange: '2:20 - 3:00',
     screenAction: 'Engineer approves inspection -> Action dispatched -> Ground truth verified',
-    narration: '“The engineer retains control. Once approved, the action agent creates a simulated maintenance task. Ground truth reveals 100% prediction match!”',
+    narration: '“The engineer retains control. Once approved, the action is recorded and the actual outcome can be compared with the prediction.”',
     judgeTakeaway: 'Safe action path & measurable outcome',
     targetAnchor: 'approval'
   }

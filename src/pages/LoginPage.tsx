@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { LogIn, UserPlus, Key, Eye, EyeOff, X } from 'lucide-react';
-import FactoryHero from '../assets/factory-hero.svg?url';
-import AmbientGear from '../assets/ambient-gear.svg?url';
+import type { Theme } from '../theme';
+import { ThemeToggle } from '../components/ThemeToggle';
 // CNC hero image at repository root - prefer this if present
 import CncImage from '../../cnc_image.webp?url';
 // NOTE: place the following files under public/assets/ in your project:
@@ -10,7 +10,7 @@ import CncImage from '../../cnc_image.webp?url';
 // - factorywhy-logo.png (primary Factory WHY logo to be used across the site)
 
 // Visually improved login page with local account creation and Google OAuth
-export const LoginPage: React.FC = () => {
+export const LoginPage: React.FC<{ theme: Theme; onToggleTheme: () => void }> = ({ theme, onToggleTheme }) => {
   const auth = useAuth() as any;
   const { signIn, signInWithGoogle, signInWithGithub, signInLocal, signUpLocal, firebaseAvailable } = auth as any;
   const [loading, setLoading] = useState(false);
@@ -19,8 +19,7 @@ export const LoginPage: React.FC = () => {
   const [providerLoading, setProviderLoading] = useState<null | 'google' | 'github' | 'facebook'>(null);
   // fallback flag to show inline GitHub SVG if the PNG asset fails to load
   const [githubImgFailed, setGithubImgFailed] = useState(false);
-  // default to signup to match the requested design
-  const [mode, setMode] = useState<'login' | 'signup' | 'oauth'>('signup');
+  const [mode, setMode] = useState<'login' | 'signup' | 'oauth'>('login');
 
   // form fields
   const [firstName, setFirstName] = useState('');
@@ -142,36 +141,35 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen relative text-slate-900 flex items-center justify-center p-6 bg-transparent">
-      {/* Background images (industrial theme) */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Primary industrial background: prefer project CNC image, then /assets/industrial-bg.jpg, then fallback SVGs */}
-        <img src={CncImage} alt="CNC background" className="w-full h-full object-cover opacity-90" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-        <img src="/assets/industrial-bg.jpg" alt="Industrial background" className="w-full h-full object-cover opacity-80" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-        <img src="/assets/industrial-bg.svg" alt="Industrial background svg" className="w-full h-full object-cover opacity-80" />
-        {/* Fallback artwork (SVG) - make more visible when no industrial-bg.jpg */}
-        <img src={FactoryHero} alt="Industrial background fallback" className="w-full h-full object-cover opacity-60" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/10" />
-        <img src={AmbientGear} alt="Ambient gear" className="absolute left-8 bottom-8 w-96 opacity-5" />
-      </div>
+    <div className="fw-auth min-h-screen text-slate-900 grid lg:grid-cols-[minmax(0,1fr)_minmax(430px,.82fr)]">
+      <aside className="fw-auth-story relative hidden lg:flex flex-col justify-between overflow-hidden">
+        <img src={CncImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="fw-auth-story-overlay absolute inset-0" />
+        <div className="relative z-10 flex items-center gap-3">
+          <img src="/assets/factorywhy-logo.png" alt="" className="w-10 h-10 object-contain bg-white rounded-md p-1" />
+          <span className="font-extrabold tracking-widest text-sm">FACTORY WHY</span>
+        </div>
+        <div className="relative z-10 max-w-xl">
+          <span className="fw-auth-eyebrow">RELIABILITY DECISION WORKSPACE</span>
+          <h1 className="fw-auth-story-title">From anomaly to accountable action.</h1>
+          <p className="fw-auth-story-copy">Read the signal. Challenge the explanation. Compare the options. Keep the engineer in control.</p>
+        </div>
+        <div className="relative z-10 fw-auth-story-footer">OBSERVE <span>→</span> EXPLAIN <span>→</span> DECIDE <span>→</span> RECORD</div>
+      </aside>
 
-      {/* Top-left brand for login page */}
-      <div className="absolute left-6 top-6 z-20 flex items-center gap-2">
-        <img src="/assets/factorywhy-logo.png" alt="Factory WHY" className="w-9 h-9 object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />
-        <div className="text-sm font-semibold text-white drop-shadow">Factory WHY</div>
-      </div>
-
-      {/* Centered card */}
-      <div className="relative z-10 w-full max-w-md">
-        <div className="mx-auto bg-gradient-to-b from-sky-50/90 to-white rounded-2xl shadow-2xl p-8 md:p-10 text-center">
+      <main className="fw-auth-panel relative flex items-center justify-center px-5 py-10 sm:px-10">
+        <div className="absolute right-5 top-5 sm:right-10 sm:top-8"><ThemeToggle theme={theme} onToggle={onToggleTheme} /></div>
+        <div className="fw-auth-card w-full max-w-md text-left">
+          <div className="flex lg:hidden items-center gap-2 mb-10">
+            <img src="/assets/factorywhy-logo.png" alt="" className="w-9 h-9 object-contain" />
+            <span className="fw-brand-name">FACTORY WHY</span>
+          </div>
           {error && <div role="alert" className="mb-4 text-sm text-rose-600">{error}</div>}
 
-          <div className="flex flex-col items-center gap-2 mb-3">
-            <div className="w-20 h-20 bg-transparent rounded flex items-center justify-center">
-              <img src="/assets/factorywhy-logo.png" alt="Factory WHY logo" className="w-16 h-16 object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}}/>
-            </div>
-            <h2 className="text-2xl font-bold">{mode === 'signup' ? 'Create an account' : 'Sign In'}</h2>
-            <p className="text-sm text-slate-600">Capturing signals. Creating auditable decisions for industrial operations.</p>
+          <div className="mb-8">
+            <span className="fw-auth-form-eyebrow">YOUR WORKSPACE</span>
+            <h2 className="fw-auth-form-title">{mode === 'signup' ? 'Create an account' : 'Welcome back'}</h2>
+            <p className="text-sm text-slate-600 mt-2">{mode === 'signup' ? 'Create a local demo account for this browser.' : 'Use your local demo account or continue with Google.'}</p>
           </div>
 
           {/* Form area (preserve existing logic but lighter visual style) */}
@@ -181,18 +179,18 @@ export const LoginPage: React.FC = () => {
                 <div className="text-sm text-slate-600 mb-2">Already have an account? <button onClick={() => setMode('login')} className="text-cyan-600 underline">Log in</button></div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" className="p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" />
-                  <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" className="p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" />
+                  <label className="fw-auth-label">First name<input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" autoComplete="given-name" className="p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" /></label>
+                  <label className="fw-auth-label">Last name<input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" autoComplete="family-name" className="p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" /></label>
                 </div>
 
-                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" />
+                <label className="fw-auth-label">Email address<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" autoComplete="email" className="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" /></label>
 
-                <div className="relative">
-                  <input type={showPassword? 'text':'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" className="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
+                <div className="fw-auth-label"><label htmlFor="fw-password-signup">Password</label><div className="relative">
+                  <input id="fw-password-signup" type={showPassword? 'text':'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" autoComplete="new-password" className="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
-                </div>
+                </div></div>
 
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="w-4 h-4" />
@@ -200,7 +198,7 @@ export const LoginPage: React.FC = () => {
                   <button type="button" onClick={() => setShowTerms(true)} className="underline text-cyan-600">Terms & Conditions</button>
                 </label>
 
-                <button onClick={handleLocalSignup} disabled={loading} className="w-full py-3 rounded-full bg-slate-900 text-white font-medium shadow-md">{loading? 'Creating…' : 'Create account'}</button>
+                <button onClick={handleLocalSignup} disabled={loading} className="fw-auth-primary w-full">{loading? 'Creating…' : 'Create account'}</button>
 
                 <div className="flex items-center gap-3 text-xs text-slate-500">
                   <span className="flex-1 border-t border-slate-200" />
@@ -245,21 +243,21 @@ export const LoginPage: React.FC = () => {
 
             {mode === 'login' && (
               <div className="space-y-4 text-left">
-                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" />
-                <div className="relative">
-                  <input type={showPassword? 'text':'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
-                </div>
+                <label className="fw-auth-label">Email address<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" autoComplete="email" className="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" /></label>
+                <div className="fw-auth-label"><label htmlFor="fw-password-login">Password</label><div className="relative">
+                  <input id="fw-password-login" type={showPassword? 'text':'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" autoComplete="current-password" className="w-full p-3 rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+                </div></div>
 
                 <div className="flex items-center justify-between gap-2">
                   <div />
-                  <button onClick={() => setMode('signup')} className="text-sm text-slate-600 underline">Create</button>
+                  <button onClick={() => setMode('signup')} className="text-sm text-teal-700 font-semibold">Create an account</button>
                 </div>
 
                 <div className="flex gap-2">
-                  <button onClick={handleLocalSignIn} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full font-medium">
+                  <button onClick={handleLocalSignIn} disabled={loading} className="fw-auth-primary flex-1 inline-flex items-center justify-center gap-2">
                     <Key className="w-4 h-4" />
-                    <span>{loading? 'Signing in…':'Sign in'}</span>
+                    <span>{loading? 'Signing in…':'Sign in locally'}</span>
                   </button>
                 </div>
 
@@ -300,7 +298,7 @@ export const LoginPage: React.FC = () => {
             )}
           </div>
         </div>
-      </div>
+      </main>
       {/* Terms & Conditions Modal */}
       {showTerms && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

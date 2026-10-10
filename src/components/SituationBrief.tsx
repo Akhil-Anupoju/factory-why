@@ -1,24 +1,11 @@
 import React from 'react';
-import { AlertTriangle, TrendingUp, TrendingDown, Target, ArrowRight } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react';
 import { InvestigationCase } from '../types';
+import { approvalDecisionLabel } from '../approvalDecisionLabel';
 
 interface SituationBriefProps {
   currentCase: InvestigationCase;
-}
-
-function deriveSeverity(summary: InvestigationCase['telemetry_summary']): { label: string; className: string } {
-  const statuses = Object.values(summary || {}).map((c) => c.status);
-  if (statuses.includes('CRITICAL')) return { label: 'HIGH SEVERITY', className: 'text-rose-700 bg-rose-50/60 border-rose-300/50' };
-  if (statuses.includes('WARNING')) return { label: 'ELEVATED SEVERITY', className: 'text-amber-700 bg-amber-50/60 border-amber-300/50' };
-  return { label: 'NOMINAL', className: 'text-emerald-700 bg-emerald-50/60 border-emerald-300/50' };
-}
-
-function topChangedChannels(summary: InvestigationCase['telemetry_summary']) {
-  const entries = Object.entries(summary || {}).map(([key, v]) => ({ key, ...v }));
-  return entries
-    .filter((e) => Math.abs(e.delta_pct) > 0)
-    .sort((a, b) => Math.abs(b.delta_pct) - Math.abs(a.delta_pct))
-    .slice(0, 3);
+  onNextStep?: () => void;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -29,108 +16,85 @@ const CHANNEL_LABELS: Record<string, string> = {
   pressure: 'Hydraulic pressure',
 };
 
-/**
- * "Situation Brief" — a 5-10 second executive summary synthesized entirely
- * from the live currentCase payload (no fabricated data). Answers: what
- * changed, why it matters, current confidence, and the recommended next
- * step, before the engineer has to read the full investigation.
- */
-export const SituationBrief: React.FC<SituationBriefProps> = ({ currentCase }) => {
-  const severity = deriveSeverity(currentCase.telemetry_summary);
-  const changedChannels = topChangedChannels(currentCase.telemetry_summary);
-
+export const SituationBrief: React.FC<SituationBriefProps> = ({ currentCase, onNextStep }) => {
+  const channels = Object.entries(currentCase.telemetry_summary || {})
+    .map(([key, value]) => ({ key, ...value }))
+    .filter((channel) => Math.abs(channel.delta_pct) > 0)
+    .sort((a, b) => Math.abs(b.delta_pct) - Math.abs(a.delta_pct))
+    .slice(0, 3);
   const leadingHypothesis = [...(currentCase.hypotheses || [])].sort((a, b) => a.likelihood_rank - b.likelihood_rank)[0];
-  const confidencePct = leadingHypothesis ? Math.round(leadingHypothesis.confidence * 100) : null;
-
-  const rec = currentCase.recommendation;
-  const isPending = currentCase.approval?.decision === 'PENDING' || !currentCase.approval?.decision;
-  const isApproved = currentCase.approval?.decision === 'APPROVED';
+  const confidence = leadingHypothesis ? Math.round(leadingHypothesis.confidence * 100) : null;
+  const hasCriticalSignal = Object.values(currentCase.telemetry_summary || {}).some((channel) => channel.status === 'CRITICAL');
+  const hasWarningSignal = Object.values(currentCase.telemetry_summary || {}).some((channel) => channel.status === 'WARNING');
+  const severity = hasCriticalSignal ? 'High severity' : hasWarningSignal ? 'Elevated' : 'Nominal';
+  const approved = currentCase.approval?.decision === 'APPROVED';
   const hasOutcome = !!currentCase.outcome;
+  const nextStep = hasOutcome
+    ? 'Investigation resolved. Review the confirmed outcome.'
+    : approved
+    ? 'Action authorized. Follow its execution and outcome.'
+    : currentCase.recommendation?.next_step || 'Analysis is still in progress.';
+  const nextButton = hasOutcome ? 'View outcome' : approved ? 'View action' : 'Review recommended action';
 
   return (
-    <div className="w-full min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="h-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-cyan-500" />
-      <div className="p-4 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 font-mono truncate tracking-tight">{currentCase.asset.asset_id}</h1>
-            <div className="text-xs sm:text-sm text-slate-500 truncate">{currentCase.asset.name}</div>
+    <section className="fw-brief" aria-labelledby="fw-brief-heading">
+      <div className="fw-brief-main">
+        <div className="fw-brief-eyebrow">
+          <span className="fw-live-indicator" aria-hidden="true" />
+          <span>INCIDENT {currentCase.incident_id}</span>
+          <span className="fw-eyebrow-divider" aria-hidden="true" />
+          <span>ASSET {currentCase.asset.asset_id}</span>
+        </div>
+
+        <div className="flex flex-wrap items-start justify-between gap-3 mt-5">
+          <div>
+            <h1 id="fw-brief-heading" className="fw-brief-title">
+              {hasOutcome ? 'Investigation resolved' : `Investigate ${currentCase.asset.asset_id}`}
+            </h1>
+            <p className="fw-brief-subtitle">{currentCase.asset.name} <span aria-hidden="true">·</span> Health score {currentCase.asset.health_score}%</p>
           </div>
-          <span className={`inline-flex items-center gap-1.5 text-xs font-bold font-mono px-3 py-1.5 rounded-full border shrink-0 ${severity.className}`}>
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-            {severity.label}
+          <span className={`fw-severity ${hasCriticalSignal ? 'fw-severity--high' : hasWarningSignal ? 'fw-severity--elevated' : 'fw-severity--nominal'}`}>
+            {hasOutcome ? <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> : <AlertTriangle className="w-4 h-4" aria-hidden="true" />}
+            {hasOutcome ? 'Resolved' : severity}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-5 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
-          {/* What changed */}
-          <div className="min-w-0 lg:pr-5 pt-3 lg:pt-0 first:pt-0">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-2 font-semibold">What changed?</div>
-            {changedChannels.length > 0 ? (
-              <ul className="space-y-1.5">
-                {changedChannels.map((c) => (
-                  <li key={c.key} className="flex items-center gap-1.5 text-sm font-mono">
-                    {c.delta_pct >= 0 ? (
-                      <TrendingUp className={`w-3.5 h-3.5 shrink-0 ${c.status === 'CRITICAL' ? 'text-rose-600' : c.status === 'WARNING' ? 'text-amber-600' : 'text-slate-400'}`} />
-                    ) : (
-                      <TrendingDown className={`w-3.5 h-3.5 shrink-0 ${c.status === 'CRITICAL' ? 'text-rose-600' : c.status === 'WARNING' ? 'text-amber-600' : 'text-slate-400'}`} />
-                    )}
-                    <span className="text-slate-700">{CHANNEL_LABELS[c.key] || c.key}</span>
-                    <span className={`font-bold ${c.status === 'CRITICAL' ? 'text-rose-600' : c.status === 'WARNING' ? 'text-amber-600' : 'text-slate-500'}`}>
-                      {c.delta_pct >= 0 ? '+' : ''}{c.delta_pct}%
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="text-sm text-slate-400">No significant deviation detected.</div>
-            )}
-          </div>
+        <div className="fw-brief-explanation">
+          <span className="fw-brief-label">{hasOutcome ? 'CONFIRMED CAUSE' : 'LEADING HYPOTHESIS'}</span>
+          <p>{hasOutcome ? currentCase.outcome?.actual_cause : leadingHypothesis?.title || 'Investigating the evidence now.'}</p>
+          {!hasOutcome && leadingHypothesis && <span className="fw-brief-hypothesis-note">Working theory · Check its supporting and conflicting evidence below.</span>}
+        </div>
 
-          {/* Why it matters */}
-          <div className="min-w-0 lg:px-5 pt-3 lg:pt-0">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-2 font-semibold">Why it matters</div>
-            <div className="text-sm text-slate-700 leading-snug">
-              {leadingHypothesis ? leadingHypothesis.title : 'Investigation in progress — no leading hypothesis yet.'}
+        <div className="fw-signal-list" aria-label="Largest signal changes">
+          {channels.length > 0 ? channels.map((channel) => (
+            <div key={channel.key} className="fw-signal-item">
+              <span className="fw-signal-name">{CHANNEL_LABELS[channel.key] || channel.key}</span>
+              <strong className={channel.status === 'CRITICAL' ? 'text-rose-700' : channel.status === 'WARNING' ? 'text-amber-700' : 'text-slate-700'}>
+                {channel.delta_pct >= 0 ? <TrendingUp className="w-4 h-4" aria-hidden="true" /> : <TrendingDown className="w-4 h-4" aria-hidden="true" />}
+                {channel.delta_pct >= 0 ? '+' : ''}{channel.delta_pct}%
+              </strong>
             </div>
-          </div>
-
-          {/* Current confidence */}
-          <div className="min-w-0 lg:px-5 pt-3 lg:pt-0">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-2 font-semibold">Current confidence</div>
-            {confidencePct !== null ? (
-              <div className="flex items-center gap-2">
-                <span className="text-3xl font-bold text-indigo-600 font-mono tabular-nums">{confidencePct}%</span>
-                <span className="text-xs text-slate-500 leading-tight">toward<br/>{leadingHypothesis.title}</span>
-              </div>
-            ) : (
-              <div className="text-sm text-slate-400">Not yet determined.</div>
-            )}
-          </div>
-
-          {/* Recommended next step */}
-          <div className="min-w-0 lg:pl-5 pt-3 lg:pt-0">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-2 font-semibold">Recommended next step</div>
-            {hasOutcome ? (
-              <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
-                <Target className="w-3.5 h-3.5 shrink-0" /> Investigation resolved — see Outcome
-              </div>
-            ) : isApproved ? (
-              <div className="flex items-center gap-1.5 text-sm font-semibold text-teal-700">
-                <ArrowRight className="w-3.5 h-3.5 shrink-0" /> Action authorized — awaiting execution
-              </div>
-            ) : rec ? (
-              <div>
-                <div className="text-sm font-semibold text-cyan-700 leading-snug">{rec.next_step}</div>
-                <div className="text-xs text-slate-500 mt-0.5">{rec.estimated_duration_minutes} min · {isPending ? 'awaiting your approval' : rec.urgency}</div>
-              </div>
-            ) : (
-              <div className="text-sm text-slate-400">Pending analysis.</div>
-            )}
-          </div>
+          )) : <span className="text-sm text-slate-500">No significant signal changes detected.</span>}
         </div>
       </div>
-    </div>
+
+      <aside className="fw-next-action" aria-label="Next in the investigation">
+        <div className="fw-next-action-top">
+          <span className="fw-brief-label">NEXT IN THE INVESTIGATION</span>
+          <span className="fw-next-action-index">→</span>
+        </div>
+        <p className="fw-next-action-copy">{nextStep}</p>
+        <div className="fw-next-action-meta">
+          <div><span>{hasOutcome ? 'Cause status' : 'Hypothesis score'}</span><strong>{hasOutcome ? 'Confirmed' : confidence === null ? 'Pending' : `${confidence}%`}</strong></div>
+          <div><span>Human decision</span><strong>{approvalDecisionLabel(currentCase.approval?.decision)}</strong></div>
+        </div>
+        {onNextStep && currentCase.recommendation && (
+          <button type="button" onClick={onNextStep} className="fw-next-action-button">
+            {nextButton}<ArrowRight className="w-4 h-4" aria-hidden="true" />
+          </button>
+        )}
+      </aside>
+    </section>
   );
 };
 

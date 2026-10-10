@@ -1,14 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
-  ShieldAlert, 
-  Sparkles, 
   AlertTriangle, 
-  HelpCircle, 
   CheckCircle2, 
   ArrowRight, 
-  RefreshCw, 
   Search,
-  Sliders,
   Scale
 } from 'lucide-react';
 import { CriticFinding } from '../types';
@@ -26,22 +21,8 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
   onEvidenceClick,
   onChallengeComplete,
 }) => {
-  const [isRunningCritic, setIsRunningCritic] = useState(false);
-  const [criticRunCount, setCriticRunCount] = useState(1);
-
-  const handleRunCritic = () => {
-    setIsRunningCritic(true);
-    setTimeout(() => {
-      setIsRunningCritic(false);
-      setCriticRunCount(prev => prev + 1);
-      if (onChallengeComplete) {
-        onChallengeComplete();
-      }
-    }, 800);
-  };
-
   return (
-    <div id="critic" className="bg-white border border-amber-500/40 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 relative overflow-hidden w-full min-w-0">
+    <div id="critic" className="fw-panel bg-white border border-amber-500/40 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 relative overflow-hidden w-full min-w-0">
       {/* Visual Accent Glow */}
       <div className="absolute top-0 right-0 w-64 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
 
@@ -53,7 +34,7 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
           </div>
           <div>
             <h2 className="text-xs font-bold font-mono tracking-wider text-amber-700 uppercase">
-              Critic Agent: Falsification & Self-Challenge
+              Challenge the leading theory
             </h2>
             <div className="text-[11px] text-slate-600 font-mono">
               Evaluating: <span className="text-slate-900 font-semibold">{leadingHypothesisTitle}</span>
@@ -61,24 +42,16 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
           </div>
         </div>
 
-        {/* Action Button: What would prove this wrong? */}
-        <button
-          onClick={handleRunCritic}
-          disabled={isRunningCritic}
-          className="flex items-center gap-2 px-3.5 py-1.5 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-500 hover:to-amber-400 text-slate-900 rounded text-xs font-bold font-mono transition-all shadow-md shadow-amber-50/60 disabled:opacity-50 self-start sm:self-auto shrink-0"
-        >
-          {isRunningCritic ? (
-            <>
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Challenging Invariants...</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-3.5 h-3.5 text-amber-800" />
-              <span>What would prove this wrong?</span>
-            </>
-          )}
-        </button>
+        {/* The findings are already displayed; this button moves to the next phase. */}
+        {onChallengeComplete && (
+          <button
+            onClick={onChallengeComplete}
+            className="flex items-center gap-2 px-3.5 py-1.5 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-500 hover:to-amber-400 text-slate-900 rounded text-xs font-bold font-mono transition-all shadow-md shadow-amber-50/60 self-start sm:self-auto shrink-0"
+          >
+            <span>Continue to action options</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Core Falsification Condition (The Primary Innovation Beat) */}
@@ -89,7 +62,7 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
           </div>
           <div className="space-y-1 min-w-0">
             <span className="text-[10px] font-mono uppercase tracking-wider text-amber-700 font-bold block">
-              Definitive Falsification Condition
+              What would prove this theory wrong?
             </span>
             <p className="text-xs text-amber-900 font-medium leading-relaxed font-sans break-anywhere">
               {criticFinding.falsification_condition}
@@ -105,7 +78,7 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
         <div className="bg-slate-50/80 border border-slate-200 rounded p-3 min-w-0">
           <div className="flex items-center gap-1.5 text-rose-600 font-mono font-semibold text-[11px] mb-2 uppercase">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-            <span>Contradictions in Competing Theories ({criticFinding.contradictions.length})</span>
+            <span>Evidence against other theories ({criticFinding.contradictions.length})</span>
           </div>
 
           <div className="space-y-2">
@@ -133,7 +106,7 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
         <div className="bg-slate-50/80 border border-slate-200 rounded p-3 min-w-0">
           <div className="flex items-center gap-1.5 text-cyan-600 font-mono font-semibold text-[11px] mb-2 uppercase">
             <Search className="w-3.5 h-3.5 shrink-0" />
-            <span>Previously Ignored Evidence Resurfaced</span>
+            <span>Evidence worth a second look</span>
           </div>
 
           <div className="space-y-2">
@@ -166,7 +139,7 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 text-emerald-600 font-mono font-semibold text-[11px] uppercase mb-1">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Single Most Discriminating Next Physical Check</span>
+                <span>Best physical check to separate causes</span>
               </div>
               <p className="text-slate-800 text-xs font-medium break-anywhere">
                 {criticFinding.strongest_discriminating_check}
@@ -174,7 +147,7 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
             </div>
 
             <div className="text-left sm:text-right shrink-0">
-              <span className="text-[10px] font-mono text-slate-600 uppercase">Critic Recommendation</span>
+              <span className="text-[10px] font-mono text-slate-600 uppercase">Suggested check</span>
               <div className="text-xs font-bold font-mono text-cyan-700 bg-cyan-50/80 border border-cyan-200/60 px-2 py-0.5 rounded mt-0.5">
                 {criticFinding.recommendation_action}
               </div>

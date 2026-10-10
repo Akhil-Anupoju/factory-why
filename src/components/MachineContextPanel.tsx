@@ -11,27 +11,33 @@ import {
   Clock,
   Compass
 } from 'lucide-react';
-import { AssetContext, AssetComponent } from '../types';
+import { AssetContext, TelemetrySummary } from '../types';
 
 interface MachineContextPanelProps {
   asset: AssetContext;
+  signals: TelemetrySummary;
   selectedComponentId: string | null;
   onSelectComponent: (componentId: string | null) => void;
 }
 
 export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
   asset,
+  signals,
   selectedComponentId,
   onSelectComponent,
 }) => {
+  const components = Array.isArray(asset.components) ? asset.components : [];
+  const flaggedCount = components.filter((component) => component.status !== 'NOMINAL').length;
+  const focusComponent = components.find((component) => component.status === 'ABNORMAL') || components[0];
+
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
+    <div className="fw-panel bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
       {/* Panel Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-cyan-600 shrink-0" />
           <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
-            Machine Context & Component Twin
+            Machine overview
           </h2>
         </div>
         {selectedComponentId && (
@@ -39,13 +45,13 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
             onClick={() => onSelectComponent(null)}
             className="text-[11px] text-cyan-600 hover:text-cyan-700 font-mono flex items-center gap-1 shrink-0"
           >
-            <span>Reset filter</span>
+              <span>Show all components</span>
           </button>
         )}
       </div>
 
       {/* Asset Overview Card */}
-      <div className="bg-slate-50/70 border border-slate-200/80 rounded p-2.5">
+      <div className="fw-asset-overview bg-slate-50/70 border border-slate-200/80 rounded p-2.5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="text-sm font-bold text-slate-900 font-mono flex items-center gap-2 truncate">
@@ -70,7 +76,7 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
             <div className="text-[10px] font-mono uppercase text-slate-600">Health Index</div>
             <div className="flex items-baseline gap-1.5 mt-0.5">
               <span className="text-xl font-bold font-mono text-amber-600">{asset.health_score}%</span>
-              <span className="text-[10px] text-rose-600 font-mono">-36 pts</span>
+              <span className="text-[10px] text-amber-700 font-mono">{flaggedCount} flagged {flaggedCount === 1 ? 'part' : 'parts'}</span>
             </div>
             <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1">
               <div
@@ -81,23 +87,23 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
           </div>
 
           <div>
-            <div className="text-[10px] font-mono uppercase text-slate-600">Recent Maintenance</div>
+            <div className="text-[10px] font-mono uppercase text-slate-600">Part to review</div>
             <div className="text-xs font-semibold text-cyan-700 mt-0.5 flex items-center gap-1">
               <Wrench className="w-3 h-3 text-cyan-600 shrink-0" />
-              <span>Bearing Replaced</span>
+              <span>{focusComponent?.name || 'No component selected'}</span>
             </div>
             <div className="text-[11px] text-slate-600 mt-0.5 font-mono">
-              4 days ago (WO #8841)
+              {focusComponent ? `Last serviced: ${focusComponent.last_serviced}` : 'Component details unavailable'}
             </div>
           </div>
         </div>
       </div>
 
       {/* Spindle Mechanical Topology Vector Diagram */}
-      <div className="bg-slate-50/90 border border-slate-200/80 rounded p-2 text-center relative overflow-hidden w-full">
+      <div className="fw-machine-map bg-slate-50/90 border border-slate-200/80 rounded p-2 text-center relative overflow-hidden w-full">
         <div className="text-[10px] font-mono text-slate-600 text-left mb-1 flex flex-wrap items-center justify-between gap-1">
-          <span>SPINDLE DRIVE TRAIN TOPOLOGY</span>
-          <span className="text-cyan-600 text-[9px]">CLICK NODE TO ISOLATE</span>
+          <span>ILLUSTRATIVE DRIVE TRAIN MAP</span>
+          <span className="text-cyan-600 text-[9px]">SELECT A PART TO FOCUS</span>
         </div>
 
         <div className="w-full overflow-hidden flex justify-center">
@@ -125,7 +131,7 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
               strokeWidth={selectedComponentId === 'MOTOR-M01' ? '2' : '1'}
             />
             <text x="45" y="48" fill="#e2e8f0" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">MOTOR</text>
-            <text x="45" y="60" fill="#f59e0b" fontSize="8" textAnchor="middle" fontFamily="monospace">+8% CURR</text>
+            <text x="45" y="60" fill="#f59e0b" fontSize="8" textAnchor="middle" fontFamily="monospace">{signals.motor_current.delta_pct >= 0 ? '+' : ''}{signals.motor_current.delta_pct.toFixed(0)}% CURR</text>
           </g>
 
           {/* Flexible Coupler */}
@@ -158,7 +164,7 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
             />
             <circle cx="210" cy="47" r="14" fill="none" stroke="#f87171" strokeWidth="2" strokeDasharray="4 2" />
             <text x="210" y="32" fill="#fca5a5" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="monospace">BEARING B04</text>
-            <text x="210" y="70" fill="#f87171" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="monospace">+42% VIB</text>
+            <text x="210" y="70" fill="#f87171" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="monospace">{signals.vibration.delta_pct >= 0 ? '+' : ''}{signals.vibration.delta_pct.toFixed(0)}% VIB</text>
           </g>
 
           {/* Spindle Nose & Tool Chuck */}
@@ -183,18 +189,18 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
       {/* Component Hierarchy List */}
       <div>
         <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] font-mono text-slate-600 mb-1.5">
-          <span>COMPONENT HIERARCHY</span>
+          <span>COMPONENTS · SELECT TO FILTER</span>
           <span>STATUS</span>
         </div>
 
         <div className="space-y-1.5">
-          {(Array.isArray(asset.components) ? asset.components : []).map((comp) => {
+          {components.map((comp) => {
             const isSelected = selectedComponentId === comp.component_id;
             return (
               <div
                 key={comp.component_id}
                 onClick={() => onSelectComponent(isSelected ? null : comp.component_id)}
-                className={`p-2 rounded border transition-all cursor-pointer text-left ${
+                className={`fw-component-card p-2 rounded border transition-all cursor-pointer text-left ${
                   isSelected
                     ? 'bg-cyan-50/40 border-cyan-500/60 ring-1 ring-cyan-500/30'
                     : comp.status === 'ABNORMAL'

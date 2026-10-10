@@ -26,6 +26,15 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
   const safeTimeSeries = Array.isArray(timeSeries) ? timeSeries : [];
   const [scrubIndex, setScrubIndex] = useState<number>(Math.max(0, safeTimeSeries.length - 1));
   const currentScrubPoint = safeTimeSeries[scrubIndex] || safeTimeSeries[safeTimeSeries.length - 1] || { vibration: 0, temperature: 0, motor_current: 0, rpm: 0, pressure: 0, display_time: '' };
+  const signalSummary = [
+    { name: 'Vibration', value: summary.vibration },
+    { name: 'Temperature', value: summary.temperature },
+    { name: 'Motor current', value: summary.motor_current },
+    { name: 'Speed', value: summary.rpm },
+    { name: 'Pressure', value: summary.pressure },
+  ];
+  const flaggedSignals = signalSummary.filter((signal) => signal.value.status !== 'NORMAL');
+  const largestChange = [...signalSummary].sort((a, b) => Math.abs(b.value.delta_pct) - Math.abs(a.value.delta_pct))[0];
 
   // SVG Chart Dimensions
   const chartWidth = 580;
@@ -34,9 +43,13 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
   const innerWidth = chartWidth - padding.left - padding.right;
   const innerHeight = chartHeight - padding.top - padding.bottom;
 
-  // Min/Max for Vibration normalization (8 to 14)
-  const minVib = 7;
-  const maxVib = 14;
+  // Include all readings and reference lines so a higher anomaly stays visible.
+  const vibrationExtent = safeTimeSeries.reduce(
+    (range, point) => ({ min: Math.min(range.min, point.vibration), max: Math.max(range.max, point.vibration) }),
+    { min: Math.min(summary.vibration.baseline, 9, 12), max: Math.max(summary.vibration.current, 9, 12) }
+  );
+  const minVib = Math.floor(vibrationExtent.min - 1);
+  const maxVib = Math.ceil(vibrationExtent.max + 1);
 
   const getX = (index: number) => {
     if (safeTimeSeries.length <= 1) return padding.left;
@@ -53,28 +66,39 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
   const anomalyX = anomalyIndex !== -1 ? getX(anomalyIndex) : null;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
+    <div className="fw-panel bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-cyan-600 shrink-0" />
           <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
-            Live Telemetry & Anomaly Dynamics
+            Signals over time
           </h2>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] font-mono">
-          <span className="text-slate-600">Lockstep Signal Coherence:</span>
-          <span className="text-emerald-600 font-bold bg-emerald-50/60 border border-emerald-200/50 px-1.5 py-0.5 rounded shrink-0">
-            r = 0.984 (Multi-channel)
-          </span>
+          <span className="text-slate-600">Current reading vs. baseline</span>
         </div>
+      </div>
+
+      <div className="fw-signal-insight">
+        <div>
+          <span className="fw-signal-insight-label">AT A GLANCE</span>
+          <strong>{flaggedSignals.length} of {signalSummary.length} signals need review</strong>
+          <p>Each card compares the selected time with its normal baseline.</p>
+        </div>
+        {largestChange && (
+          <div className="fw-signal-insight-change">
+            <span>LARGEST CHANGE</span>
+            <strong>{largestChange.name} {largestChange.value.delta_pct >= 0 ? '+' : ''}{largestChange.value.delta_pct.toFixed(0)}%</strong>
+          </div>
+        )}
       </div>
 
       {/* 5-Card Metric Matrix - Responsive Reflow across all screen widths */}
       <div className="grid grid-cols-2 min-[540px]:grid-cols-3 xl:grid-cols-5 gap-2 w-full min-w-0">
         
         {/* Vibration Card (+42%) */}
-        <div className="bg-slate-50/80 border border-rose-200/60 rounded p-2 text-left relative overflow-hidden min-w-0">
+        <div className="fw-telemetry-metric bg-slate-50/80 border border-rose-200/60 rounded p-2 text-left relative overflow-hidden min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-1">
             <span className="text-[10px] font-mono uppercase text-slate-600 truncate">Vibration</span>
             <span className="text-[10px] font-mono font-bold text-rose-600 bg-rose-50 px-1 rounded border border-rose-200/60 shrink-0">
@@ -94,7 +118,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
         </div>
 
         {/* Temperature Card (+11%) */}
-        <div className="bg-slate-50/80 border border-amber-200/60 rounded p-2 text-left relative overflow-hidden min-w-0">
+        <div className="fw-telemetry-metric bg-slate-50/80 border border-amber-200/60 rounded p-2 text-left relative overflow-hidden min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-1">
             <span className="text-[10px] font-mono uppercase text-slate-600 truncate">Temp</span>
             <span className="text-[10px] font-mono font-bold text-amber-600 bg-amber-50 px-1 rounded border border-amber-200/60 shrink-0">
@@ -114,7 +138,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
         </div>
 
         {/* Motor Current Card (+8%) */}
-        <div className="bg-slate-50/80 border border-amber-200/60 rounded p-2 text-left relative overflow-hidden min-w-0">
+        <div className="fw-telemetry-metric bg-slate-50/80 border border-amber-200/60 rounded p-2 text-left relative overflow-hidden min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-1">
             <span className="text-[10px] font-mono uppercase text-slate-600 truncate">Current</span>
             <span className="text-[10px] font-mono font-bold text-amber-600 bg-amber-50 px-1 rounded border border-amber-200/60 shrink-0">
@@ -134,10 +158,10 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
         </div>
 
         {/* Spindle RPM (Normal) */}
-        <div className="bg-slate-50/80 border border-slate-200 rounded p-2 text-left relative overflow-hidden min-w-0">
+        <div className="fw-telemetry-metric bg-slate-50/80 border border-slate-200 rounded p-2 text-left relative overflow-hidden min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-1">
             <span className="text-[10px] font-mono uppercase text-slate-600 truncate">Speed</span>
-            <span className="text-[10px] font-mono text-emerald-600 shrink-0">NOMINAL</span>
+            <span className="text-[10px] font-mono text-emerald-600 shrink-0">{summary.rpm.status}</span>
           </div>
           <div className="flex items-baseline gap-1 mt-1">
             <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 tabular-nums">
@@ -146,16 +170,16 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <span className="text-[10px] font-mono text-slate-600">RPM</span>
           </div>
           <div className="text-[10px] text-slate-600 font-mono mt-0.5 truncate">
-            Base: <span className="text-slate-700">3400 RPM</span>
+            Base: <span className="text-slate-700">{summary.rpm.baseline} RPM</span>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500" />
         </div>
 
         {/* Hydraulic Pressure (Normal) */}
-        <div className="bg-slate-50/80 border border-slate-200 rounded p-2 text-left relative overflow-hidden min-w-0 col-span-2 min-[540px]:col-span-1">
+        <div className="fw-telemetry-metric bg-slate-50/80 border border-slate-200 rounded p-2 text-left relative overflow-hidden min-w-0 col-span-2 min-[540px]:col-span-1">
           <div className="flex flex-wrap items-center justify-between gap-1">
             <span className="text-[10px] font-mono uppercase text-slate-600 truncate">Pressure</span>
-            <span className="text-[10px] font-mono text-emerald-600 shrink-0">NOMINAL</span>
+            <span className="text-[10px] font-mono text-emerald-600 shrink-0">{summary.pressure.status}</span>
           </div>
           <div className="flex items-baseline gap-1 mt-1">
             <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 tabular-nums">
@@ -164,7 +188,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
             <span className="text-[10px] font-mono text-slate-600">bar</span>
           </div>
           <div className="text-[10px] text-slate-600 font-mono mt-0.5 truncate">
-            Base: <span className="text-slate-700">4.2 bar</span>
+            Base: <span className="text-slate-700">{summary.pressure.baseline} bar</span>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500" />
         </div>
@@ -172,10 +196,10 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
       </div>
 
       {/* Interactive Time-Series Graph with Anomaly Marker & Scrubbing */}
-      <div className="bg-slate-50 border border-slate-200 rounded p-3 w-full min-w-0">
+      <div className="fw-telemetry-chart bg-slate-50 border border-slate-200 rounded p-3 w-full min-w-0">
         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-600 mb-2">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
-            <span className="text-slate-900 font-semibold">VIBRATION DRIFT TIME-SERIES</span>
+            <span className="text-slate-900 font-semibold">VIBRATION TREND</span>
             <div className="flex items-center gap-1.5 text-rose-600 shrink-0">
               <span className="w-2 h-2 rounded-full bg-rose-500" />
               <span>VIB-B04 (Radial Peak)</span>
@@ -214,7 +238,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
                 <line x1={anomalyX} y1={padding.top} x2={anomalyX} y2={chartHeight - padding.bottom} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4 2" />
                 <rect x={anomalyX - 45} y={padding.top} width="90" height="16" rx="2" fill="#78350f" fillOpacity="0.8" stroke="#f59e0b" strokeWidth="1" />
                 <text x={anomalyX} y={padding.top + 11} fill="#fef3c7" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
-                  ANOMALY 14:18
+                  ANOMALY {safeTimeSeries[anomalyIndex]?.display_time}
                 </text>
               </g>
             )}
@@ -274,7 +298,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 mt-2 pt-2 border-t border-slate-200/80">
           <div className="flex items-center gap-1.5 shrink-0">
             <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />
-            <span className="text-[10px] font-mono text-slate-600 uppercase">Timeline Scrubber:</span>
+            <span className="text-[10px] font-mono text-slate-600 uppercase">Explore timeline:</span>
           </div>
           <input
             type="range"

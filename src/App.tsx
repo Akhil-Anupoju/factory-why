@@ -27,7 +27,9 @@ import {
 import { fetchIncident, postApproval, postAction, fetchOutcome, postChallenge } from './api/incidentApi';
 import { ApiError } from './api/apiClient';
 import { useAuth } from './auth/AuthContext';
+import { approvalDecisionLabel } from './approvalDecisionLabel';
 import LoginPage from './pages/LoginPage';
+import { applyTheme, readStoredTheme, saveTheme, type Theme } from './theme';
 import createInvestigationStream from './api/streamApi';
 import { 
   InvestigationCase, 
@@ -53,6 +55,13 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  const [theme, setTheme] = useState<Theme>(readStoredTheme);
+  useEffect(() => {
+    applyTheme(theme);
+    saveTheme(theme);
+  }, [theme]);
+  const toggleTheme = () => setTheme((current) => current === 'dark' ? 'light' : 'dark');
+
   // Read frontend runtime mode from VITE_RUNTIME_MODE. If set to one of
   // CLOUD/LIVE/PRODUCTION then demo/mock fallbacks are disallowed.
   // Default (unset or LOCAL/DEMO) preserves existing developer-friendly behavior.
@@ -82,6 +91,7 @@ export default function App() {
   // rather than let the UI appear frozen/static.
   const [isLiveAnalyzing, setIsLiveAnalyzing] = useState<boolean>(false);
   const auth = useAuth();
+  const useClientDemoActions = usingMock || (!isLiveRuntime() && auth.isLocalDemoUser);
 
   // TopBar now consumes Auth context directly — no DOM wiring required here.
 
@@ -92,20 +102,15 @@ export default function App() {
   const [selectedSimulationOption, setSelectedSimulationOption] = useState<string>('INSPECT');
   const [isEvaluationSuiteOpen, setIsEvaluationSuiteOpen] = useState<boolean>(false);
 
-  // Progressive-disclosure stage expansion state. Investigation stages
-  // (asset/signals/why/critic/evidence/simulate) are available as soon as
-  // live data loads (the backend delivers them in one payload, not a
-  // staged reveal), so they default to expanded and are individually
-  // collapsible for review. The two human-decision stages (approve,
-  // outcome) are auto-managed: whichever one requires the engineer's
-  // attention next is kept expanded and visually emphasized as CURRENT.
+  // Show the machine and leading explanations first. Supporting detail stays
+  // one click away so the initial workspace is readable without a long scroll.
+  // The human decision stages still follow real approval and outcome state.
   const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({
     asset: true,
-    signals: true,
     why: true,
-    critic: true,
-    evidence: true,
-    simulate: true,
+    critic: false,
+    evidence: false,
+    simulate: false,
     approve: true,
     outcome: false,
     audit: false,
@@ -113,7 +118,7 @@ export default function App() {
   const toggleStage = (id: string) => setExpandedStages(prev => ({ ...prev, [id]: !prev[id] }));
 
   // 3-Minute Demo Script Guide State
-  const [isDemoGuideOpen, setIsDemoGuideOpen] = useState<boolean>(true);
+  const [isDemoGuideOpen, setIsDemoGuideOpen] = useState<boolean>(false);
   const [demoStep, setDemoStep] = useState<number>(1);
   const [isDemoPlaying, setIsDemoPlaying] = useState<boolean>(false);
 
@@ -352,7 +357,6 @@ export default function App() {
     const approvalDecision = currentCase.approval?.decision;
     switch (id) {
       case 'asset':
-      case 'signals':
         return hasData ? 'completed' : 'pending';
       case 'why':
         return (currentCase.hypotheses?.length || 0) > 0 ? 'completed' : 'pending';
@@ -377,16 +381,6 @@ export default function App() {
     }
   };
 
-  const topChangedSummary = (): string => {
-    const entries = Object.entries(currentCase.telemetry_summary || {});
-    const sorted = entries
-      .filter(([, v]: any) => Math.abs(v.delta_pct) > 0)
-      .sort((a: any, b: any) => Math.abs(b[1].delta_pct) - Math.abs(a[1].delta_pct))
-      .slice(0, 3);
-    const labels: Record<string, string> = { vibration: 'Vibration', temperature: 'Temp', motor_current: 'Current', rpm: 'RPM', pressure: 'Pressure' };
-    return sorted.map(([k, v]: any) => `${labels[k] || k} ${v.delta_pct >= 0 ? '+' : ''}${v.delta_pct}%`).join(' · ') || 'No deviation';
-  };
-
   // Handler: Reset Case
   const handleResetCase = () => {
     handleSelectScenario(activeScenarioId);
@@ -404,10 +398,12 @@ export default function App() {
 
   // Handler: Human Approval Decision
   const handleApprovalDecision = async (decision: ApprovalDecision, comment: string) => {
+    setError(null);
     const timestamp = new Date().toISOString();
 
-    // Local demo behavior preserved when usingMock === true
-    if (usingMock) {
+    // Local accounts have no Firebase token. Keep their decisions in the
+    // browser even when the public incident GET succeeded against the API.
+    if (useClientDemoActions) {
       if (decision === 'APPROVED') {
         // preserve existing demo flow (client-side action creation)
         const generatedAction: ActionRecord = {
@@ -522,11 +518,7 @@ export default function App() {
       // Map ApiError to user-facing states
       if (err instanceof ApiError) {
         if (err.status === 401) {
-          setError('Your session has expired. Please sign in again.');
-          // eslint-disable-next-line no-console
-          console.error(`[AUTH SIGNOUT] Triggered by approval/challenge flow — request to ${err.url || '(unknown url)'} returned 401 even after one forced token refresh+retry. Signing out.`);
-          // sign the user out to force re-auth
-          auth.signOut();
+          setError('The backend could not verify your Firebase sign-in. Please retry or sign in again.');
           return;
         }
         if (err.status === 403) {
@@ -564,10 +556,11 @@ export default function App() {
 
   // Handler: Execute Physical Inspection to reveal Ground Truth
   const handleExecuteAction = async () => {
+    setError(null);
     const timestamp = new Date().toISOString();
 
-    // Guard: only allow execution in live mode when approval is server-confirmed
-    if (!usingMock) {
+    // Server execution requires a server-confirmed approval and Firebase auth.
+    if (!useClientDemoActions) {
       const approval = currentCase.approval;
       if (!approval || approval.decision !== 'APPROVED' || approval.incident_id !== currentCase.incident_id || approval.recommendation_id !== currentCase.recommendation.recommendation_id) {
         setError('Action locked: approval not confirmed for this incident and recommendation.');
@@ -601,10 +594,7 @@ export default function App() {
       } catch (err: any) {
         if (err instanceof ApiError) {
           if (err.status === 401) {
-            setError('Your session has expired. Please sign in again.');
-            // eslint-disable-next-line no-console
-            console.error(`[AUTH SIGNOUT] Triggered by action-execution flow — request to ${err.url || '(unknown url)'} returned 401 even after one forced token refresh+retry. Signing out.`);
-            auth.signOut();
+            setError('The backend could not verify your Firebase sign-in. Please retry or sign in again.');
             return;
           }
           if (err.status === 403) {
@@ -621,7 +611,7 @@ export default function App() {
       }
     }
 
-    // Demo/local behavior preserved when usingMock === true
+    // Complete the browser-only demo action.
     const outcome = activeScenarioId === 'CNC-04' ? GROUND_TRUTH_OUTCOME_CNC04 : null;
 
     if (outcome) {
@@ -669,10 +659,13 @@ export default function App() {
     setDemoStep(stepNumber);
     const beat = DEMO_BEATS[stepNumber - 1];
     if (beat && beat.targetAnchor) {
-      const el = document.getElementById(beat.targetAnchor);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+      const stageForAnchor: Record<string, string> = {
+        'machine-context': 'asset', telemetry: 'asset', evidence: 'evidence',
+        hypotheses: 'why', critic: 'critic', simulation: 'simulate', approval: 'approve',
+      };
+      const stage = stageForAnchor[beat.targetAnchor];
+      if (stage) setExpandedStages(prev => ({ ...prev, [stage]: true }));
+      requestAnimationFrame(() => scrollToSection(beat.targetAnchor));
     }
 
     // Auto-progress actions on certain beats
@@ -732,11 +725,11 @@ export default function App() {
   }
 
   if (!auth.isAuthenticated) {
-    return <LoginPage />;
+    return <LoginPage theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-800 overflow-x-hidden">
+    <div className="fw-app min-h-screen text-slate-900 flex flex-col font-sans selection:bg-teal-500/25 selection:text-teal-950 overflow-x-hidden">
       
       {/* 1. Top Bar */}
       <TopBar
@@ -748,6 +741,8 @@ export default function App() {
         demoProgress={demoStep}
         onOpenDemoGuide={() => setIsDemoGuideOpen(!isDemoGuideOpen)}
         isDemoGuideOpen={isDemoGuideOpen}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* 2. Three-Minute Demo Script Bar */}
@@ -762,15 +757,14 @@ export default function App() {
       )}
 
       {/* Loading / Error / Mock Fallback Banner - non-modal, accessible */}
-      <div aria-live="polite" className="max-w-[1720px] mx-auto px-3 sm:px-5 py-2">
+      <div aria-live="polite" className="max-w-[1480px] w-full mx-auto px-4 sm:px-7 py-2">
         {isLiveAnalyzing && (
           <div className="flex items-center gap-3 bg-cyan-50/70 border border-cyan-300/60 rounded p-3 text-cyan-950 mb-2" role="status">
             <Loader2 className="animate-spin w-5 h-5 text-cyan-700 shrink-0" aria-hidden />
             <div>
-              <div className="font-semibold">Gemini is running a live Critic analysis</div>
+              <div className="font-semibold">Gemini is checking the leading theory</div>
               <div className="text-xs text-cyan-800">
-                Google ADK is executing Evidence → WHY → Critic → (targeted retrieval) → revised WHY against Vertex AI.
-                This is a real model call and typically takes 30–120 seconds — this is not a frozen screen.
+                It is reviewing evidence and looking for contradictions. This live check can take 30–120 seconds.
               </div>
             </div>
           </div>
@@ -781,7 +775,7 @@ export default function App() {
             <Loader2 className="animate-spin w-5 h-5 text-cyan-600" aria-hidden />
             <div>
               <div className="font-semibold">Loading live incident</div>
-              <div className="text-xs text-slate-600">Fetching latest incident data from backend…</div>
+              <div className="text-xs text-slate-600">Fetching the latest incident data…</div>
             </div>
           </div>
         )}
@@ -790,22 +784,21 @@ export default function App() {
           <div className="flex items-start gap-3 bg-amber-100/80 border border-amber-300 rounded p-3 text-amber-950" role="alert">
             <AlertTriangle className="w-5 h-5 text-amber-800 mt-0.5" aria-hidden />
             <div className="flex-1 min-w-0">
-              <div className="font-semibold">Data unavailable</div>
+              <div className="font-semibold">Request needs attention</div>
               {usingMock ? (
                 <div className="text-sm text-amber-900">Could not load the live incident data from the backend. The application is using a local demo scenario instead.</div>
               ) : (
                 <div className="text-sm text-amber-900">
-                  Unable to load live investigation data ({error}). No demo fallback is used in this runtime mode.
+                  {error}
                 </div>
               )}
-              <div className="text-xs text-amber-900 mt-1">If you expected live data, check network connectivity or backend health.</div>
             </div>
             {!usingMock && (
               <button
                 onClick={() => loadIncident(currentCase.incident_id, false)}
                 className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded bg-amber-300 hover:bg-amber-400 text-slate-900 border border-amber-500/60"
               >
-                Retry
+                Reload incident
               </button>
             )}
           </div>
@@ -820,59 +813,51 @@ export default function App() {
             </div>
           </div>
         )}
+        {!loading && auth.isLocalDemoUser && !isLiveRuntime() && !error && (
+          <div className="flex items-center gap-3 bg-sky-50 border border-sky-200 rounded p-2 text-sky-950" role="status">
+            <Info className="w-5 h-5 text-sky-700 shrink-0" aria-hidden />
+            <div className="text-sm">Local demo account: approvals and actions stay in this browser. Sign in with Google or GitHub for server-backed decisions.</div>
+          </div>
+        )}
       </div>
 
-      {/* Investigation Progress Rail — reflects real stage status (completed/current/pending/locked) */}
-      <nav
-        aria-label="Investigation Stages Navigation"
-        className="bg-white/95 backdrop-blur border-b border-slate-200 px-3 sm:px-5 py-2 w-full min-w-0 sticky top-[88px] sm:top-[96px] z-20 shadow-sm"
-      >
-        <div className="max-w-[1720px] mx-auto flex flex-wrap items-center gap-1 sm:gap-1.5 text-[11px] font-mono min-w-0">
-          {([
-            { id: 'asset', anchor: 'machine-context', label: 'Asset' },
-            { id: 'signals', anchor: 'telemetry', label: 'Signals' },
-            { id: 'why', anchor: 'hypotheses', label: 'WHY' },
-            { id: 'critic', anchor: 'critic', label: 'Critic' },
-            { id: 'evidence', anchor: 'evidence', label: 'Evidence' },
-            { id: 'simulate', anchor: 'simulation', label: 'Simulate' },
-            { id: 'approve', anchor: 'approval', label: 'Approve' },
-            { id: 'outcome', anchor: 'outcome', label: 'Outcome' },
-            { id: 'audit', anchor: 'audit', label: 'Audit' },
-          ] as const).map((stage, i) => {
-            const status = stageStatus(stage.id);
-            const dotClass =
-              status === 'completed' ? 'bg-emerald-500' :
-              status === 'current' ? 'bg-cyan-500 animate-pulse' :
-              status === 'locked' ? 'bg-slate-300' : 'bg-slate-400';
-            const textClass =
-              status === 'current' ? 'text-cyan-700 font-bold' :
-              status === 'locked' ? 'text-slate-400' : 'text-slate-600';
-            return (
-              <React.Fragment key={stage.id}>
-                {i > 0 && <span className="text-slate-200 hidden sm:inline">/</span>}
-                <button
-                  onClick={() => focusStage(stage.id, stage.anchor)}
-                  disabled={status === 'locked'}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors whitespace-nowrap ${textClass} ${status === 'locked' ? 'cursor-not-allowed' : 'hover:text-slate-900 hover:bg-white'} ${status === 'current' ? 'bg-cyan-50' : ''}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
-                  <span>{i + 1}. {stage.label}</span>
-                </button>
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </nav>
-
       {/* Main Investigation Workspace Area */}
-      <main className="flex-1 max-w-[1720px] w-full mx-auto px-3 sm:px-5 py-5 sm:py-7 space-y-4 min-w-0">
+      <main className="fw-workspace flex-1 max-w-[1480px] w-full mx-auto px-4 sm:px-7 py-6 sm:py-9 space-y-7 min-w-0">
 
         {/* Executive Situation Brief — 5-10 second summary synthesized from live data */}
-        <SituationBrief currentCase={currentCase} />
+        <SituationBrief
+          currentCase={currentCase}
+          onNextStep={() => currentCase.outcome || currentCase.approval?.decision === 'APPROVED'
+            ? focusStage('outcome', 'outcome')
+            : focusStage('approve', 'approval')}
+        />
 
-        {/* 01 — Asset Twin & 02 — Signals */}
+        <div className="fw-workflow-overview">
+          <div className="fw-workflow-intro">
+            <h2>Follow the investigation</h2>
+            <p>Start with what changed, test the likely cause, choose a response, and see what happened.</p>
+          </div>
+          <nav aria-label="Investigation workflow" className="fw-workflow-grid grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+            {([
+              { number: '01', label: 'Observe', detail: 'What changed?', stage: 'asset', anchor: 'machine-context' },
+              { number: '02', label: 'Explain', detail: 'Why might it have happened?', stage: 'why', anchor: 'hypotheses' },
+              { number: '03', label: 'Decide', detail: 'What should we do?', stage: 'simulate', anchor: 'simulation' },
+              { number: '04', label: 'Record', detail: 'What happened next?', stage: 'outcome', anchor: 'outcome' },
+            ] as const).map((phase) => (
+              <button key={phase.number} type="button" onClick={() => focusStage(phase.stage, phase.anchor)} className="fw-workflow-step text-left">
+                <span className="fw-workflow-number">{phase.number}</span>
+                <span className="fw-workflow-copy"><strong>{phase.label}</strong><small>{phase.detail}</small></span>
+                <ChevronRight className="w-4 h-4 shrink-0" aria-hidden="true" />
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="fw-phase-heading fw-phase-heading--observe"><span>01 / OBSERVE</span><p>Understand the machine and trace every signal to its source.</p></div>
         <StageSection
-          id="machine-context" index={1} title="Asset Twin" status={stageStatus('asset')}
+          id="machine-context" index={1} title="Asset & signals" status={stageStatus('asset')}
+          phase="observe"
+          guide={{ meaning: 'See which part of the machine needs attention and how its signals compare with normal operation.', explore: 'Select a component to focus the evidence, then drag the timeline to inspect changes over time.' }}
           summary={`${currentCase.asset.name} · Health ${currentCase.asset.health_score}%`}
           expanded={expandedStages.asset} onToggle={() => toggleStage('asset')}
         >
@@ -880,6 +865,7 @@ export default function App() {
             <div className="lg:col-span-5 min-w-0">
               <MachineContextPanel
                 asset={currentCase.asset}
+                signals={currentCase.telemetry_summary}
                 selectedComponentId={selectedComponentId}
                 onSelectComponent={setSelectedComponentId}
               />
@@ -895,16 +881,25 @@ export default function App() {
         </StageSection>
 
         <StageSection
-          id="telemetry-stage" index={2} title="Signals" status={stageStatus('signals')}
-          summary={topChangedSummary()}
-          expanded={expandedStages.signals} onToggle={() => toggleStage('signals')}
+          id="evidence" index={2} title="Evidence & provenance" status={stageStatus('evidence')}
+          phase="observe"
+          guide={{ meaning: 'These are observed records. Each item shows where the information came from.', explore: 'Filter by source and open an evidence item to inspect its provenance.' }}
+          summary={`${currentCase.evidence?.length || 0} records`}
+          expanded={expandedStages.evidence} onToggle={() => toggleStage('evidence')}
         >
-          <div className="text-xs text-slate-600 font-mono">See Asset Twin panel above for the full telemetry dynamics and scrubber.</div>
+          <EvidenceTimeline
+            evidenceList={currentCase.evidence}
+            selectedEvidenceId={selectedEvidence?.evidence_id || null}
+            onSelectEvidence={setSelectedEvidence}
+            filteredComponentId={selectedComponentId}
+          />
         </StageSection>
 
-        {/* 03 — WHY: Competing Hypotheses, 04 — Critic */}
+        <div className="fw-phase-heading fw-phase-heading--explain"><span>02 / EXPLAIN</span><p>Compare possible causes, then challenge the leading theory.</p></div>
         <StageSection
-          id="hypotheses" index={3} title="WHY — Competing Hypotheses" status={stageStatus('why')}
+          id="hypotheses" index={3} title="Competing explanations" status={stageStatus('why')}
+          phase="explain"
+          guide={{ meaning: 'Possible causes are ranked as interpretations of the evidence, with support and contradictions shown separately.', explore: 'Compare confidence and evidence links, then challenge the leading explanation.' }}
           summary={(() => {
             const lead = [...(currentCase.hypotheses || [])].sort((a, b) => a.likelihood_rank - b.likelihood_rank)[0];
             return lead ? `${lead.title} · ${Math.round(lead.confidence * 100)}%` : 'No hypotheses yet';
@@ -921,7 +916,9 @@ export default function App() {
         </StageSection>
 
         <StageSection
-          id="critic" index={4} title="Critic — Falsification Challenge" status={stageStatus('critic')}
+          id="critic" index={4} title="Challenge the lead" status={stageStatus('critic')}
+          phase="explain"
+          guide={{ meaning: 'A strong explanation should survive a search for conflicting facts and missing checks.', explore: 'Review contradictions and the proposed physical check before deciding.' }}
           summary={currentCase.critic_finding?.falsification_condition || 'No critique yet'}
           expanded={expandedStages.critic} onToggle={() => toggleStage('critic')}
         >
@@ -933,23 +930,11 @@ export default function App() {
           />
         </StageSection>
 
-        {/* 05 — Evidence */}
+        <div className="fw-phase-heading fw-phase-heading--decide"><span>03 / DECIDE</span><p>Compare the trade-offs before a person authorizes the next step.</p></div>
         <StageSection
-          id="evidence" index={5} title="Evidence Stream" status={stageStatus('evidence')}
-          summary={`${currentCase.evidence?.length || 0} records`}
-          expanded={expandedStages.evidence} onToggle={() => toggleStage('evidence')}
-        >
-          <EvidenceTimeline
-            evidenceList={currentCase.evidence}
-            selectedEvidenceId={selectedEvidence?.evidence_id || null}
-            onSelectEvidence={setSelectedEvidence}
-            filteredComponentId={selectedComponentId}
-          />
-        </StageSection>
-
-        {/* 06 — Simulation */}
-        <StageSection
-          id="simulation" index={6} title="Deterministic Simulation" status={stageStatus('simulate')}
+          id="simulation" index={5} title="Compare options" status={stageStatus('simulate')}
+          phase="decide"
+          guide={{ meaning: 'The options show modeled trade-offs in downtime, risk, uncertainty, and cost.', explore: 'Adjust assumptions to see how the comparison changes; this does not approve an action.' }}
           summary={currentCase.simulation_results?.find(r => r.recommended)?.title || currentCase.recommendation?.next_step || 'Not yet run'}
           expanded={expandedStages.simulate} onToggle={() => toggleStage('simulate')}
         >
@@ -962,10 +947,11 @@ export default function App() {
           />
         </StageSection>
 
-        {/* 07 — Recommendation + Human Approval Gate (the primary human decision point) */}
         <StageSection
-          id="approval" index={7} title="Human Approval Gate" status={stageStatus('approve')}
-          summary={`Decision: ${currentCase.approval?.decision || 'PENDING'}`}
+          id="approval" index={6} title="Human approval" status={stageStatus('approve')}
+          phase="decide"
+          guide={{ meaning: 'The recommendation is a proposal. A person makes the final decision before the action stage.', explore: 'Review the evidence and expected impact, then approve, reject, request evidence, or challenge.' }}
+          summary={`Decision: ${approvalDecisionLabel(currentCase.approval?.decision)}`}
           lockedReason="awaiting recommendation"
           expanded={expandedStages.approve} onToggle={() => toggleStage('approve')}
         >
@@ -981,14 +967,18 @@ export default function App() {
                 approval={currentCase.approval || ({} as any)}
                 onDecision={handleApprovalDecision}
                 onChallengeClick={() => focusStage('critic', 'critic')}
+                demoMode={useClientDemoActions}
+                operatorName={auth.user?.displayName || auth.user?.email}
               />
             </div>
           </div>
         </StageSection>
 
-        {/* 08 — Simulated Action & Outcome (unlocked only after approval) */}
+        <div className="fw-phase-heading fw-phase-heading--record"><span>04 / RECORD</span><p>Follow the dispatched action and review the decision trail.</p></div>
         <StageSection
-          id="outcome" index={8} title="Simulated Action & Outcome" status={stageStatus('outcome')}
+          id="outcome" index={7} title="Action & outcome" status={stageStatus('outcome')}
+          phase="record"
+          guide={{ meaning: useClientDemoActions ? 'This demo connects the approved action with a simulated inspection result.' : 'This connects the approved action with the inspection outcome returned by the server.', explore: 'Review the work steps and compare the before and after values.' }}
           summary={currentCase.outcome ? currentCase.outcome.actual_cause : 'Action not yet executed'}
           lockedReason="awaiting human approval"
           expanded={expandedStages.outcome} onToggle={() => toggleStage('outcome')}
@@ -1000,15 +990,17 @@ export default function App() {
                 approval={currentCase.approval || ({} as any)}
                 onExecuteAction={handleExecuteAction}
                 isOutcomeRevealed={!!currentCase.outcome}
+                demoMode={useClientDemoActions}
               />
             </div>
             <OutcomePanel outcome={currentCase.outcome} />
           </div>
         </StageSection>
 
-        {/* 09 — Audit Trail (secondary, collapsed by default) */}
         <StageSection
-          id="audit" index={9} title="Audit Trail" status={stageStatus('audit')}
+          id="audit" index={8} title="Audit trail" status={stageStatus('audit')}
+          phase="record"
+          guide={{ meaning: 'The timeline records the sequence of agent and tool events behind this investigation.', explore: 'Filter by agent and expand an event to inspect its details.' }}
           summary={`${currentCase.audit_trail?.length || 0} events`}
           expanded={expandedStages.audit} onToggle={() => toggleStage('audit')}
         >
@@ -1022,10 +1014,10 @@ export default function App() {
       <footer className="border-t border-slate-100 bg-slate-50 py-4 px-4 text-center text-xs font-mono text-slate-500">
         <div className="max-w-[1720px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div>
-            <span>FACTORY WHY · Industrial Diagnostics & Root-Cause Workspace</span>
+            <span>FACTORY WHY · Industrial reliability investigations</span>
           </div>
           <div>
-            <span>Google ADK + Gemini Architecture Reference</span>
+            <span>From signal to accountable action</span>
           </div>
         </div>
       </footer>
