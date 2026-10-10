@@ -46,7 +46,7 @@ export const SimulationPanel: React.FC<SimulationPanelProps> = ({
   };
 
   return (
-    <section id="simulation" className="bg-white border border-slate-200 rounded-lg p-3.5 sm:p-5 flex flex-col gap-4 shadow-sm">
+    <section id="simulation" className="fw-panel bg-white border border-slate-200 rounded-lg p-3.5 sm:p-5 flex flex-col gap-4 shadow-sm">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-200 pb-3">
         <div className="flex items-center gap-2.5">
@@ -55,10 +55,10 @@ export const SimulationPanel: React.FC<SimulationPanelProps> = ({
           </div>
           <div>
             <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
-              Deterministic Decision Simulator
+              Compare possible actions
             </h2>
             <p className="text-[11px] text-slate-600 font-mono">
-              Transparent Decision Support · Deterministic Code Calculations · Model: <span className="text-slate-700 font-semibold">{currentParams.assumptions_version}</span>
+              Change the assumptions to update the comparison · Version: <span className="text-slate-700 font-semibold">{currentParams.assumptions_version}</span>
             </p>
           </div>
         </div>
@@ -73,10 +73,10 @@ export const SimulationPanel: React.FC<SimulationPanelProps> = ({
                 : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'
             }`}
             aria-expanded={showAssumptionsDrawer}
-            aria-label="Toggle challengeable simulation parameters"
+            aria-label="Show or hide comparison assumptions"
           >
             <Sliders className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
-            <span>Challenge Assumptions</span>
+            <span>Adjust assumptions</span>
             {showAssumptionsDrawer ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
         </div>
@@ -88,10 +88,10 @@ export const SimulationPanel: React.FC<SimulationPanelProps> = ({
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <div>
               <span className="text-cyan-700 font-bold uppercase text-[11px] block">
-                Challengeable Deterministic Parameters
+                Assumptions used in this comparison
               </span>
               <span className="text-[10px] text-slate-600 font-sans">
-                Adjust variables to test trade-offs. Calculations execute deterministically without LLM speculation.
+                Change a value to see how the trade-offs respond. This does not approve an action.
               </span>
             </div>
             <button

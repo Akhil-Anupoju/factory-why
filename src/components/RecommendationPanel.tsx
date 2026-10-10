@@ -20,16 +20,13 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
   onEvidenceClick,
 }) => {
   return (
-    <div id="recommendation" className="bg-white border border-cyan-500/40 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 relative overflow-hidden w-full min-w-0">
-      {/* Visual Accent */}
-      <div className="absolute top-0 right-0 w-48 h-24 bg-cyan-500/10 rounded-full blur-xl pointer-events-none" />
-
+    <div id="recommendation" className="fw-panel bg-white border border-cyan-500/40 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-cyan-600 shrink-0" />
           <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
-            Synthesized Next-Step Recommendation
+            Recommended next step
           </h2>
         </div>
 
@@ -45,7 +42,7 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
       {/* Main Recommendation Statement */}
       <div className="bg-slate-50/90 border border-cyan-500/30 rounded-lg p-3 w-full min-w-0">
         <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-600 font-bold mb-1">
-          Authorized Engineering Action Proposed
+          Proposed action · Requires human approval
         </div>
         <h3 className="text-sm md:text-base font-bold text-slate-900 font-sans flex items-start gap-2 break-anywhere">
           <span className="text-cyan-600 font-mono shrink-0">▶</span>

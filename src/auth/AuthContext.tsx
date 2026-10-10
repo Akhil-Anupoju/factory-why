@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { initFirebase } from '../firebase/init';
 import { setTokenGetter } from '../api/tokenProvider';
 import { GoogleAuthProvider, FacebookAuthProvider, GithubAuthProvider, onAuthStateChanged, signInWithPopup, linkWithPopup, signOut as firebaseSignOut, User } from 'firebase/auth';
@@ -14,6 +14,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   isAuthenticated: boolean;
+  isLocalDemoUser: boolean;
   // Preferred explicit names for provider sign-ins
   signInWithGoogle: () => Promise<void>;
   // GitHub sign-in
@@ -24,12 +25,10 @@ interface AuthContextValue {
   signIn: () => Promise<void>;
   // Optional: Facebook sign-in
   signInFacebook?: () => Promise<void>;
-  // Optional: Apple sign-in (may be unavailable if Firebase not configured for Apple)
-  signInApple?: () => Promise<void>;
   signInLocal: (email: string, password: string) => Promise<{ uid: string; email: string; displayName: string }>;
   signUpLocal: (email: string, password: string, displayName?: string) => Promise<{ uid: string; email: string; displayName: string }>;
   signOut: () => Promise<void>;
-  getIdToken: () => Promise<string | null>;
+  getIdToken: (force?: boolean) => Promise<string | null>;
   // whether Firebase frontend SDK is available/configured in this environment
   firebaseAvailable: boolean;
 }
@@ -46,6 +45,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { auth } = initFirebase();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isLocalDemoUser, setIsLocalDemoUser] = useState(false);
+  const localSessionRef = useRef(false);
   const firebaseAvailable = !!auth;
 
   useEffect(() => {
@@ -57,8 +58,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsub = onAuthStateChanged(auth, (u: User | null) => {
       if (u) {
+        localSessionRef.current = false;
+        setIsLocalDemoUser(false);
         setUser({ uid: u.uid, displayName: u.displayName, email: u.email });
-      } else {
+      } else if (!localSessionRef.current) {
         // Diagnostic only (no PII/tokens): helps distinguish "Firebase
         // client session was actually cleared" from "a single API call
         // got a 401". If you see this log unexpectedly shortly after a
@@ -153,6 +156,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // the frontend authenticated for demo UI flows while leaving API calls
     // unauthenticated so the backend can opt-in to anonymous/demo behavior
     // using FACTORY_WHY_ALLOW_ANONYMOUS_DEMO. This reduces accidental 401s.
+    localSessionRef.current = true;
+    setIsLocalDemoUser(true);
     setUser({ uid: u.uid, displayName: u.displayName, email: u.email });
     return u;
   };
@@ -163,11 +168,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Same as signInLocal: do not register a fake Authorization token for
     // local/demo accounts. Keep API calls unauthenticated so the backend
     // can handle demo mode explicitly when configured.
+    localSessionRef.current = true;
+    setIsLocalDemoUser(true);
     setUser({ uid: u.uid, displayName: u.displayName, email: u.email });
     return u;
   };
 
   const signOut = async () => {
+    localSessionRef.current = false;
+    setIsLocalDemoUser(false);
     if (auth) {
       try {
         await firebaseSignOut(auth);
@@ -181,7 +190,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const getIdToken = async (force?: boolean): Promise<string | null> => {
-    if (!auth || !auth.currentUser) return null;
+    if (localSessionRef.current || !auth || !auth.currentUser) return null;
     try {
       // Firebase SDK exposes getIdToken(force) to optionally refresh the token
       // when `force` is true. We propagate the `force` arg so callers can
@@ -206,6 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       loading,
       isAuthenticated: !!user,
+      isLocalDemoUser,
       signInWithGoogle,
       signIn,
       signInWithGithub,
@@ -218,7 +228,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       getIdToken,
       firebaseAvailable,
     }),
-    [user, loading, firebaseAvailable]
+    [user, loading, firebaseAvailable, isLocalDemoUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

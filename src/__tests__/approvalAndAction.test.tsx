@@ -59,7 +59,7 @@ describe('Approval & Action live wiring', () => {
     render(<App />);
 
     // Wait until ApprovalPanel renders with PENDING
-    await screen.findByText(/Human-in-the-Loop Safety Gate & Authorization/);
+    await screen.findByText(/Review and sign off/);
 
     const approveBtn = screen.getByText('Approve Action');
     fireEvent.click(approveBtn);
@@ -73,7 +73,7 @@ describe('Approval & Action live wiring', () => {
     await screen.findByText(/Action Formally Authorized by/);
 
     // Execute button should be available now
-    const execBtn = await screen.findByText(/Complete Physical Inspection & Reveal Ground Truth/);
+    const execBtn = await screen.findByText(/Submit action and load outcome/);
     expect(execBtn).toBeTruthy();
 
     // Click execute and ensure postAction called and outcome displayed
@@ -82,43 +82,44 @@ describe('Approval & Action live wiring', () => {
     if (GROUND_TRUTH_OUTCOME_CNC04) await screen.findByText(GROUND_TRUTH_OUTCOME_CNC04.actual_cause);
   });
 
-  it('approval 401 -> signs out and shows error', async () => {
+  it('approval 401 -> keeps the user signed in and shows an error', async () => {
     const postApprovalSpy = vi.spyOn(incidentApi as any, 'postApproval').mockRejectedValue(new ApiError('Authentication required', 401));
     render(<App />);
-    await screen.findByText(/Human-in-the-Loop Safety Gate & Authorization/);
+    await screen.findByText(/Review and sign off/);
     const approveBtn = screen.getByText('Approve Action');
     fireEvent.click(approveBtn);
     await waitFor(() => expect(postApprovalSpy).toHaveBeenCalled());
-    // signOut should have been called
-    expect(signOutSpy).toHaveBeenCalled();
+    await screen.findByText(/backend could not verify your Firebase sign-in/i);
+    expect(signOutSpy).not.toHaveBeenCalled();
   });
 
   it('approval 403 -> not authorized (no signout)', async () => {
     const postApprovalSpy = vi.spyOn(incidentApi as any, 'postApproval').mockRejectedValue(new ApiError('Forbidden', 403));
     render(<App />);
-    await screen.findByText(/Human-in-the-Loop Safety Gate & Authorization/);
+    await screen.findByText(/Review and sign off/);
     const approveBtn = screen.getByText('Approve Action');
     fireEvent.click(approveBtn);
     await waitFor(() => expect(postApprovalSpy).toHaveBeenCalled());
     expect(signOutSpy).not.toHaveBeenCalled();
   });
 
-  it('action 401 -> signs out', async () => {
+  it('action 401 -> keeps the user signed in', async () => {
     const serverApproval = { ...PRIMARY_SCENARIO_CNC04.approval, approval_id: 'APP-SRV-2', recommendation_id: PRIMARY_SCENARIO_CNC04.recommendation.recommendation_id, decision: 'APPROVED' } as any;
     vi.spyOn(incidentApi as any, 'postApproval').mockResolvedValue(serverApproval);
     const postActionSpy = vi.spyOn(incidentApi as any, 'postAction').mockRejectedValue(new ApiError('Authentication required', 401));
 
     render(<App />);
-    await screen.findByText(/Human-in-the-Loop Safety Gate & Authorization/);
+    await screen.findByText(/Review and sign off/);
     fireEvent.click(screen.getByText('Approve Action'));
     await waitFor(() => expect(postActionSpy).not.toHaveBeenCalled());
 
     // Wait for approval to be applied
     await screen.findByText(/Action Formally Authorized by/);
     // Click execute
-    fireEvent.click(await screen.findByText(/Complete Physical Inspection & Reveal Ground Truth/));
+    fireEvent.click(await screen.findByText(/Submit action and load outcome/));
     await waitFor(() => expect(postActionSpy).toHaveBeenCalled());
-    expect(signOutSpy).toHaveBeenCalled();
+    await screen.findByText(/backend could not verify your Firebase sign-in/i);
+    expect(signOutSpy).not.toHaveBeenCalled();
   });
 
   it('duplicate approval prevented', async () => {
@@ -127,7 +128,7 @@ describe('Approval & Action live wiring', () => {
     const postApprovalSpy = vi.spyOn(incidentApi as any, 'postApproval').mockImplementation(() => approvalPromise as any);
 
     render(<App />);
-    await screen.findByText(/Human-in-the-Loop Safety Gate & Authorization/);
+    await screen.findByText(/Review and sign off/);
     const approveBtn = screen.getByText('Approve Action');
     // click twice quickly
     fireEvent.click(approveBtn);
@@ -145,10 +146,10 @@ describe('Approval & Action live wiring', () => {
     const postActionSpy = vi.spyOn(incidentApi as any, 'postAction').mockImplementation(() => actionPromise as any);
 
     render(<App />);
-    await screen.findByText(/Human-in-the-Loop Safety Gate & Authorization/);
+    await screen.findByText(/Review and sign off/);
     fireEvent.click(screen.getByText('Approve Action'));
     await screen.findByText(/Action Formally Authorized by/);
-    const execBtn = await screen.findByText(/Complete Physical Inspection & Reveal Ground Truth/);
+    const execBtn = await screen.findByText(/Submit action and load outcome/);
     fireEvent.click(execBtn);
     fireEvent.click(execBtn);
     resolveAction!({ action: { action_id: 'ACT-2', incident_id: PRIMARY_SCENARIO_CNC04.incident_id, approval_id: serverApproval.approval_id, task_type: 'T', task_number: 'TASK-2', assigned_technician: 'T', required_tools: [], status: 'DISPATCHED', dispatched_at: new Date().toISOString(), target_component: 'X', procedure_checklist: [] }, outcome: GROUND_TRUTH_OUTCOME_CNC04 });

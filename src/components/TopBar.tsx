@@ -1,192 +1,94 @@
 import React from 'react';
+import { BarChart3, Layers3, RotateCcw, Sparkles, LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import { 
-  ShieldAlert, 
-  RotateCcw, 
-  BarChart3, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Cpu, 
-  Play, 
-  Sparkles,
-  Layers,
-  Activity
-} from 'lucide-react';
 import { InvestigationCase } from '../types';
+import type { Theme } from '../theme';
+import { ThemeToggle } from './ThemeToggle';
 
 interface TopBarProps {
   currentCase: InvestigationCase;
   activeScenarioId: string;
+  demoMode?: boolean;
   onSelectScenario: (scenarioId: string) => void;
   onResetCase: () => void;
   onOpenEvaluationSuite: () => void;
-  demoProgress: number; // 1 to 8
+  demoProgress: number;
   onOpenDemoGuide: () => void;
   isDemoGuideOpen: boolean;
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   currentCase,
   activeScenarioId,
+  demoMode = false,
   onSelectScenario,
   onResetCase,
   onOpenEvaluationSuite,
   demoProgress,
   onOpenDemoGuide,
   isDemoGuideOpen,
+  theme,
+  onToggleTheme,
 }) => {
-  // minimal user identity display will be injected by parent via DOM or
-  // a future prop; for now we will render an optional area reserved for
-  // authenticated user identity and sign-out control managed by App.
-  // App will set these via a small DOM-managed handler to avoid changing
-  // many component props right now.
-  const getStatusBadge = () => {
-    if (currentCase && currentCase.outcome) {
-      return (
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50/80 border border-emerald-500/40 px-2.5 py-1 rounded">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-          <span className="whitespace-nowrap">RESOLVED & VERIFIED</span>
-        </span>
-      );
-    }
-    if (currentCase && currentCase.action) {
-      return (
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-700 bg-cyan-50/80 border border-cyan-500/40 px-2.5 py-1 rounded">
-          <Cpu className="w-3.5 h-3.5 text-cyan-600 animate-spin shrink-0" />
-          <span className="whitespace-nowrap">TASK DISPATCHED</span>
-        </span>
-      );
-    }
-    if (currentCase && currentCase.approval && currentCase.approval.decision === 'APPROVED') {
-      return (
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 bg-teal-50/80 border border-teal-500/40 px-2.5 py-1 rounded">
-          <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-          <span className="whitespace-nowrap">ACTION AUTHORIZED</span>
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50/80 border border-amber-500/40 px-2.5 py-1 rounded">
-        <span className="w-2 h-2 rounded-full bg-amber-600 animate-ping shrink-0" />
-        <span className="whitespace-nowrap">INVESTIGATING</span>
-      </span>
-    );
-  };
-
   const auth = useAuth();
+  const caseStatus = demoMode
+    ? { label: 'Demo only', tone: 'demo' }
+    : currentCase.outcome
+      ? { label: 'Resolved', tone: 'resolved' }
+      : currentCase.action
+        ? { label: 'Action dispatched', tone: 'active' }
+        : currentCase.approval?.decision === 'APPROVED'
+          ? { label: 'Authorized', tone: 'active' }
+          : { label: 'Investigating', tone: 'investigating' };
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-3 sm:px-5 py-2.5 shadow-sm">
-      <div className="max-w-[1720px] mx-auto flex flex-col gap-1 sm:gap-2 w-full">
-        {/* Top row: Brand (left) + Actions (right) */}
-        <div className="w-full flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 shrink-0">
-              <img src="/assets/factorywhy-logo.png" alt="Factory WHY" className="h-4 sm:h-5 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}}/>
-              <div className="leading-none">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900 font-mono leading-none">FACTORY WHY</span>
-                  <span className="hidden sm:inline text-[10px] uppercase font-mono tracking-wider text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded bg-slate-50 leading-none">CTRL+WHY PROTOCOL</span>
-                </div>
-                <div className="text-[10px] sm:text-[11px] text-slate-600 font-mono">Reliability Decision Workspace</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Demo Script */}
-            <button
-              onClick={onOpenDemoGuide}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-xs font-medium rounded border transition-colors shrink-0 ${
-                isDemoGuideOpen
-                  ? 'bg-cyan-500/20 text-cyan-700 border-cyan-500/50 shadow-sm'
-                  : 'bg-slate-200 text-slate-800 border-slate-300 hover:bg-slate-300 hover:text-slate-900'
-              }`}
-              aria-expanded={isDemoGuideOpen}
-              aria-label="Toggle 3-Minute Demo Script"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
-              <span className="hidden sm:inline">Demo Script</span>
-              <span className="text-[10px] font-mono bg-slate-50 px-1.5 py-0.5 rounded text-cyan-700 border border-slate-200">{demoProgress}/8</span>
-            </button>
-
-            {/* Reset */}
-            <button
-              onClick={onResetCase}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-200 rounded border border-slate-200 transition-colors shrink-0"
-              title="Reset investigation to initial anomaly state"
-              aria-label="Reset investigation case"
-            >
-              <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden xl:inline font-mono text-[11px]">Reset</span>
-            </button>
-
-            {/* Auth identity + sign-out */}
-            {auth.isAuthenticated && (
-              <div className="flex items-center gap-2 ml-2">
-                <div className="text-xs text-slate-700 hidden sm:block">{auth.user?.displayName || auth.user?.email}</div>
-                <button
-                  onClick={() => auth.signOut()}
-                  className="text-xs px-2 py-1 rounded bg-slate-200 text-slate-800 border border-slate-300 hover:bg-slate-300"
-                  aria-label="Sign out"
-                >
-                  Sign out
-                </button>
-              </div>
-            )}
+    <header className="fw-topbar sticky top-0 z-30">
+      <div className="max-w-[1480px] mx-auto px-4 sm:px-7 py-3 flex flex-wrap items-center gap-3 sm:gap-5">
+        <div className="fw-brand flex items-center gap-3 min-w-0 mr-auto">
+          <img src="/assets/factorywhy-logo.png" alt="" className="w-9 h-9 object-contain shrink-0" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
+          <div className="min-w-0">
+            <div className="fw-brand-name">FACTORY WHY</div>
+            <div className="fw-brand-subtitle">Reliability decision workspace</div>
           </div>
         </div>
 
-        {/* Bottom row: Incident badges (left) + Scenario selector & Scorecard (right) */}
-        <div className="w-full flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded text-xs font-mono min-w-0">
-              <div className="flex items-center gap-1 shrink-0">
-                <span className="text-slate-600">INCIDENT:</span>
-                <span className="font-semibold text-slate-900">{currentCase.incident_id}</span>
-              </div>
-              <span className="text-slate-300 hidden xs:inline shrink-0">·</span>
-              <div className="flex items-center gap-1 shrink-0">
-                <span className="text-slate-600">ASSET:</span>
-                <span className="font-bold text-cyan-700">{currentCase.asset.asset_id}</span>
-              </div>
-              <span className="text-slate-300 hidden xs:inline shrink-0">·</span>
-              <div className="flex items-center gap-1 shrink-0">
-                <span className="text-slate-600">SEVERITY:</span>
-                <span className="text-rose-600 font-bold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 shrink-0" />HIGH</span>
-              </div>
-            </div>
+        <div className="fw-case-switcher flex items-center gap-2 min-w-0 order-3 w-full lg:order-none lg:w-auto">
+          <Layers3 className="w-4 h-4 shrink-0 text-teal-700" aria-hidden="true" />
+          <label htmlFor="fw-case-select" className="sr-only">Investigation case</label>
+          <select
+            id="fw-case-select"
+            value={activeScenarioId}
+            onChange={(event) => onSelectScenario(event.target.value)}
+            className="min-w-0 flex-1 lg:flex-none bg-transparent text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
+          >
+            <option value="CNC-04">CNC-04 · Multi-sensor anomaly</option>
+            <option value="CNC-04-LUBE">CNC-04 · Pressure & thermal surge</option>
+          </select>
+          <span className={`fw-case-status fw-case-status--${caseStatus.tone}`}>{caseStatus.label}</span>
+        </div>
 
-            <div className="flex items-center shrink-0">
-              {getStatusBadge()}
+        <div className="fw-toolbar flex items-center gap-1.5 sm:gap-2">
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+          <button type="button" onClick={onOpenDemoGuide} aria-expanded={isDemoGuideOpen} className={`fw-tool-button ${isDemoGuideOpen ? 'is-active' : ''}`} title="Open the guided demo">
+            <Sparkles className="w-4 h-4" aria-hidden="true" /><span className="hidden sm:inline">Demo guide</span><small>{demoProgress}/8</small>
+          </button>
+          <button type="button" onClick={onOpenEvaluationSuite} className="fw-tool-button" title="Open the evaluation scorecard">
+            <BarChart3 className="w-4 h-4" aria-hidden="true" /><span className="hidden sm:inline">Scorecard</span>
+          </button>
+          <button type="button" onClick={onResetCase} className="fw-tool-button fw-icon-button" title="Reset investigation" aria-label="Reset investigation">
+            <RotateCcw className="w-4 h-4" aria-hidden="true" />
+          </button>
+          {auth.isAuthenticated && (
+            <div className="fw-account flex items-center gap-2 pl-2 sm:pl-3">
+              <span className="fw-avatar" aria-hidden="true">{(auth.user?.displayName || auth.user?.email || 'U').charAt(0).toUpperCase()}</span>
+              <span className="hidden xl:block max-w-32 truncate text-xs font-medium text-slate-700">{auth.user?.displayName || auth.user?.email}</span>
+              <button type="button" onClick={() => auth.signOut()} className="fw-tool-button fw-icon-button" title="Sign out" aria-label="Sign out">
+                <LogOut className="w-4 h-4" aria-hidden="true" />
+              </button>
             </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-xs max-w-full min-w-0">
-              <span className="text-slate-600 text-[11px] font-mono hidden sm:inline shrink-0">CASE:</span>
-              <select
-                value={activeScenarioId}
-                onChange={(e) => onSelectScenario(e.target.value)}
-                aria-label="Select Investigation Case Scenario"
-                className="bg-transparent text-slate-800 text-xs font-medium focus:outline-none cursor-pointer max-w-[200px] xs:max-w-[240px] sm:max-w-xs md:max-w-none truncate"
-              >
-                <option value="CNC-04" className="bg-white text-slate-900">CNC-04: Multi-Sensor Anomaly (Live Case)</option>
-                <option value="CNC-04-LUBE" className="bg-white text-slate-900">CNC-04: Pressure & Thermal Surge (Case #2)</option>
-              </select>
-            </div>
-
-            <button
-              onClick={onOpenEvaluationSuite}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-xs font-medium rounded bg-slate-200 text-slate-800 border border-slate-300 hover:bg-slate-300 hover:text-slate-900 transition-colors shrink-0"
-              title="Open 8-Scenario Evaluation Scorecard"
-              aria-label="Open Evaluation Scorecard Suite"
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span className="hidden md:inline">Scorecard</span>
-              <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50/80 px-1 py-0.5 rounded border border-emerald-200/40">8/8</span>
-            </button>
-          </div>
+          )}
         </div>
       </div>
     </header>

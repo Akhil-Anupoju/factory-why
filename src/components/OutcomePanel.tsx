@@ -9,7 +9,8 @@ import {
   FileCheck,
   Check,
   ShieldCheck,
-  Lock
+  Lock,
+  XCircle
 } from 'lucide-react';
 import { OutcomeRecord } from '../types';
 
@@ -20,29 +21,34 @@ interface OutcomePanelProps {
 export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
   if (!outcome) {
     return (
-      <div id="outcome" className="bg-slate-100/60 border border-slate-200/80 rounded-lg p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 text-slate-600 w-full min-w-0">
+      <div id="outcome" className="fw-panel bg-slate-100/60 border border-slate-200/80 rounded-lg p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 text-slate-600 w-full min-w-0">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 shrink-0">
             <Lock className="w-4 h-4 text-slate-500" />
           </div>
           <div className="min-w-0">
             <span className="text-xs font-bold font-mono text-slate-600 uppercase tracking-wide block truncate">
-              Physical Ground Truth Verification
+              Inspection outcome
             </span>
             <p className="text-[11px] text-slate-500 font-mono mt-0.5 break-anywhere">
-              Quarantined until maintenance action is physically executed on shop floor.
+              The findings and before-and-after readings appear after the action is complete.
             </p>
           </div>
         </div>
         <span className="text-[10px] font-mono uppercase bg-slate-50 text-slate-500 px-2 py-1 rounded border border-slate-200 shrink-0">
-          CONCEALED
+          PENDING
         </span>
       </div>
     );
   }
 
+  const vibrationChangePct = outcome.pre_vibration
+    ? ((outcome.post_vibration - outcome.pre_vibration) / outcome.pre_vibration) * 100
+    : null;
+  const temperatureChange = outcome.post_temperature - outcome.pre_temperature;
+
   return (
-    <div id="outcome" className="bg-white border border-emerald-500/50 rounded-lg p-3 sm:p-4 flex flex-col gap-3 relative overflow-hidden shadow-lg shadow-emerald-50/20 w-full min-w-0">
+    <div id="outcome" className="fw-panel bg-white border border-emerald-500/50 rounded-lg p-3 sm:p-4 flex flex-col gap-3 relative overflow-hidden shadow-lg shadow-emerald-50/20 w-full min-w-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">
@@ -51,7 +57,7 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
           </div>
           <div>
             <h2 className="text-xs font-bold font-mono tracking-wider text-emerald-700 uppercase">
-              Physical Ground Truth Revealed & Evaluation Metrics
+              Inspection result
             </h2>
             <div className="text-[11px] text-slate-600 font-mono">
               Outcome Reference: <span className="text-slate-800">{outcome.outcome_id}</span>
@@ -61,9 +67,9 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
 
         {/* Prediction Match Indicator */}
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 max-w-full">
-          <span className="text-xs font-bold font-mono text-emerald-700 bg-emerald-50 border border-emerald-500/50 px-2.5 py-1 rounded flex items-center gap-1.5 shadow-sm truncate">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span className="truncate">PREDICTION MATCH: 100% (TOP-1 RECALL)</span>
+          <span className={`text-xs font-bold font-mono border px-2.5 py-1 rounded flex items-center gap-1.5 shadow-sm truncate ${outcome.prediction_match ? 'text-emerald-700 bg-emerald-50 border-emerald-500/50' : 'text-amber-800 bg-amber-50 border-amber-400/50'}`}>
+            {outcome.prediction_match ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+            <span className="truncate">{outcome.prediction_match ? 'PREDICTION MATCHED' : 'PREDICTION DID NOT MATCH'}</span>
           </span>
         </div>
       </div>
@@ -102,8 +108,8 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
         {/* Vibration Recovery */}
         <div className="bg-slate-50/80 border border-slate-200 p-2.5 rounded min-w-0">
           <div className="flex justify-between items-center text-[10px] text-slate-600 uppercase">
-            <span>Vibration Recovery</span>
-            <span className="text-emerald-600 font-bold">-75% Restored</span>
+            <span>Vibration change</span>
+            <span className={`font-bold ${vibrationChangePct !== null && vibrationChangePct > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{vibrationChangePct === null ? '—' : `${vibrationChangePct > 0 ? '+' : ''}${vibrationChangePct.toFixed(0)}%`}</span>
           </div>
           <div className="flex items-baseline justify-between mt-1.5">
             <div>
@@ -121,8 +127,8 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
         {/* Temperature Normalization */}
         <div className="bg-slate-50/80 border border-slate-200 p-2.5 rounded min-w-0">
           <div className="flex justify-between items-center text-[10px] text-slate-600 uppercase">
-            <span>Thermal Normalization</span>
-            <span className="text-emerald-600 font-bold">-9.8°C</span>
+            <span>Temperature change</span>
+            <span className={`font-bold ${temperatureChange > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{temperatureChange > 0 ? '+' : ''}{temperatureChange.toFixed(1)}°C</span>
           </div>
           <div className="flex items-baseline justify-between mt-1.5">
             <div>
@@ -141,7 +147,7 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
         <div className="bg-slate-50/80 border border-slate-200 p-2.5 rounded flex flex-col justify-between min-w-0">
           <div className="flex justify-between items-center text-[10px] text-slate-600 uppercase">
             <span>Evaluation Score</span>
-            <span className="text-cyan-700 font-bold">100 / 100</span>
+            <span className="text-cyan-700 font-bold">{outcome.accuracy_score_pct} / 100</span>
           </div>
           <div className="flex items-baseline justify-between mt-1.5">
             <div>
@@ -150,7 +156,7 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
             </div>
             <div>
               <span className="text-slate-500 text-[10px] block">BENCHMARK:</span>
-              <span className="text-emerald-600 font-bold">PASS (TOP-1)</span>
+              <span className="text-emerald-600 font-bold">{outcome.top_k_recall ? 'PASS' : 'REVIEW'}</span>
             </div>
           </div>
         </div>

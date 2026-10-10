@@ -69,13 +69,13 @@ export const HypothesisCards: React.FC<HypothesisCardsProps> = ({
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
+    <div className="fw-panel bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">
           <GitCompare className="w-4 h-4 text-cyan-600 shrink-0" />
           <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
-            WHY Agent: Competing Root-Cause Hypotheses
+            Possible root causes
           </h2>
         </div>
 
@@ -85,7 +85,7 @@ export const HypothesisCards: React.FC<HypothesisCardsProps> = ({
           className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 border border-amber-500/40 rounded text-xs font-semibold transition-all shadow-sm shadow-amber-50/50 self-start sm:self-auto shrink-0"
         >
           <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-          <span>Challenge Leading Hypothesis</span>
+          <span>Review the challenge</span>
         </button>
       </div>
 
@@ -93,11 +93,11 @@ export const HypothesisCards: React.FC<HypothesisCardsProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono w-full min-w-0">
         <div className="bg-slate-50/80 border border-cyan-500/30 p-2 rounded flex items-center gap-2 text-cyan-700">
           <div className="w-2 h-2 rounded-full bg-cyan-600 shrink-0" />
-          <span>[OBSERVED FACTS]: Grounded in immutable sensor, CMMS & manual evidence_ids.</span>
+          <span>Observed facts: sensor readings, maintenance records, and manuals.</span>
         </div>
         <div className="bg-slate-50/80 border border-purple-500/30 p-2 rounded flex items-center gap-2 text-purple-700">
           <div className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
-          <span>[AI INFERENCE]: Synthesized mechanical hypotheses subject to falsification critic.</span>
+          <span>AI explanations: interpretations that need to be checked against facts.</span>
         </div>
       </div>
 
@@ -132,7 +132,7 @@ export const HypothesisCards: React.FC<HypothesisCardsProps> = ({
                 
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
                   <div className="flex items-center gap-1.5 text-xs font-mono">
-                    <span className="text-slate-600">Confidence:</span>
+                    <span className="text-slate-600">Model score:</span>
                     <span className={`font-bold tabular-nums ${isLeading ? 'text-cyan-700' : 'text-slate-600'}`}>
                       {(hyp.confidence * 100).toFixed(0)}%
                     </span>
