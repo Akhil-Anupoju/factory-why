@@ -27,24 +27,13 @@ jobs:
           node-version: ${{ matrix.node }}
 
       - name: Install backend dependencies
-        working-directory: backend
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r <(python - <<'PY'
-import tomllib,sys
-print('\n'.join(['-r requirements.txt']) )
-PY)
-
-      - name: Install backend runtime deps (minimal)
-        working-directory: backend
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "fastapi>=0.99" "pydantic>=2.3" "uvicorn[standard]"
+          python -m pip install -e "./backend[dev]"
 
       - name: Run backend tests
-        working-directory: backend
         run: |
-          python -m pytest -q tests
+          python -m pytest -q backend/tests
 
   frontend:
     name: Frontend lint & build

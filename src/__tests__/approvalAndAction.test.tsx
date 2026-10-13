@@ -79,7 +79,9 @@ describe('Approval & Action live wiring', () => {
     // Click execute and ensure postAction called and outcome displayed
     fireEvent.click(execBtn);
     await waitFor(() => expect(postActionSpy).toHaveBeenCalled());
-    if (GROUND_TRUTH_OUTCOME_CNC04) await screen.findByText(GROUND_TRUTH_OUTCOME_CNC04.actual_cause);
+    if (GROUND_TRUTH_OUTCOME_CNC04) {
+      await screen.findByRole('heading', { name: GROUND_TRUTH_OUTCOME_CNC04.actual_cause });
+    }
   });
 
   it('approval 401 -> keeps the user signed in and shows an error', async () => {
