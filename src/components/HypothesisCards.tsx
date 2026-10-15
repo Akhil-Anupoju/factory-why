@@ -85,7 +85,7 @@ export const HypothesisCards: React.FC<HypothesisCardsProps> = ({
           className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 border border-amber-500/40 rounded text-xs font-semibold transition-all shadow-sm shadow-amber-50/50 self-start sm:self-auto shrink-0"
         >
           <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-          <span>Review the challenge</span>
+          <span>Go to Critic section</span>
         </button>
       </div>
 

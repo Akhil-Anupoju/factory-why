@@ -38,7 +38,7 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
           </div>
           <div>
             <h2 className="text-xs font-bold font-mono tracking-wider text-amber-700 uppercase">
-              Challenge the leading theory
+              Challenge the leading hypothesis
             </h2>
             <div className="text-[11px] text-slate-600 font-mono">
               Evaluating: <span className="text-slate-900 font-semibold">{leadingHypothesisTitle}</span>
@@ -50,17 +50,20 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
           type="button"
           onClick={onChallenge}
           disabled={!challengeAvailable || isChallenging}
+          title="Challenge the current leading explanation against incident evidence. This does not approve or execute an action."
+          aria-label="Challenge the leading hypothesis"
           className="fw-critic-challenge flex items-center gap-2 px-3.5 py-1.5 rounded text-xs font-bold font-mono self-start sm:self-auto"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>{isChallenging ? 'Challenging with AI…' : 'Challenge this hypothesis'}</span>
+          <span>{isChallenging ? 'Challenge running…' : 'Challenge the hypothesis'}</span>
         </button>
       </div>
-      {!challengeAvailable && <p className="text-[11px] text-slate-600">{criticFinding ? 'These are sample Critic findings.' : 'A live Critic challenge is unavailable in this demo.'} Sign in with Google or GitHub and load the live incident to run a new AI challenge.</p>}
+      <p className="text-[11px] text-slate-600">The Critic checks the leading hypothesis against conflicting evidence and identifies an observation that could falsify it. This is analysis only—not approval or dispatch.</p>
+      {!challengeAvailable && <p className="text-[11px] text-slate-600">{criticFinding ? 'These are sample Critic findings.' : 'A live Critic challenge is unavailable in this demo.'} Sign in with Google or GitHub and load the live incident to challenge the hypothesis.</p>}
 
       {!criticFinding ? (
         <div className="fw-critic-card rounded border border-slate-200 p-3 text-xs text-slate-700" role="status">
-          No Critic findings are available yet. Use the challenge action above to check the leading hypothesis against the evidence.
+          No challenge findings are available yet. Challenge the leading hypothesis above to test it against the evidence.
         </div>
       ) : <>
       <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-600">Critic findings</p>

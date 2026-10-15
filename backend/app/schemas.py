@@ -183,6 +183,8 @@ class ActionRecord(BaseModel):
 class OutcomeRecord(BaseModel):
     outcome_id: str
     incident_id: str
+    is_simulated: bool = False
+    modeled_recovery_pct: Optional[float] = None
     actual_cause: str
     observed_result: str
     physical_findings: List[str]
@@ -190,10 +192,10 @@ class OutcomeRecord(BaseModel):
     post_vibration: float
     pre_temperature: float
     post_temperature: float
-    prediction_match: bool
-    top_k_recall: bool
+    prediction_match: Optional[bool] = None
+    top_k_recall: Optional[bool] = None
     time_to_resolution_minutes: int
-    accuracy_score_pct: int
+    accuracy_score_pct: Optional[int] = None
 
 
 class AuditEvent(BaseModel):
@@ -210,6 +212,9 @@ class AuditEvent(BaseModel):
 
 class InvestigationCase(BaseModel):
     incident_id: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    severity: Optional[str] = None
     asset: AssetContext
     telemetry_summary: TelemetrySummary
     telemetry_series: List[TelemetryPoint]

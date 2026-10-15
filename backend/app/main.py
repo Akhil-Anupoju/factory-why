@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .api import incidents
 from .auth import AuthService, FirebaseVerifier
 from .repositories.in_memory import InMemoryIncidentRepo, InMemoryEvidenceRepo, InMemoryAuditRepo, InMemoryTelemetryRepo, InMemoryStorageRepo
-from .seed.seed_from_fixture import seed_from_fixture
+from .seed.seed_from_fixture import seed_incident_fixtures
+from .seed.test_incident_fixtures import build_fresh_replay_incident, build_test_incidents
 
 
 def create_app() -> FastAPI:
@@ -43,9 +45,13 @@ def create_app() -> FastAPI:
         # contaminating cloud-backed runs. Seed failures are non-fatal in
         # local dev but will be surfaced in tests that expect seeded data.
         try:
-            from .seed.seed_from_fixture import seed_from_fixture
-
-            seed_from_fixture(inc_repo, ev_repo, au_repo, fixture_path="backend/fixtures/cnc04-primary.json")
+            seed_incident_fixtures(inc_repo, ev_repo, au_repo)
+            for incident in [build_fresh_replay_incident(), *build_test_incidents()]:
+                inc_repo.upsert_incident(incident)
+                for evidence in incident.get("evidence", []):
+                    ev_repo.upsert_evidence(incident["incident_id"], evidence)
+                for event in incident.get("audit_trail", []):
+                    au_repo.append_audit(incident["incident_id"], event)
         except Exception:
             # non-fatal: if seeding fails, the app can still run (tests will fail later)
             pass
@@ -78,6 +84,34 @@ def create_app() -> FastAPI:
         validate_firebase_credentials(raise_on_missing=True)
 
     app.state.auth_service = AuthService(FirebaseVerifier())
+
+    # CORS: the frontend (Firebase Hosting) and the backend (Cloud Run) are
+    # served from different origins in production, so the browser requires
+    # an explicit CORS allowlist. Configure via ALLOWED_ORIGINS (comma
+    # separated, e.g. "https://factory-why-hackathon.web.app,https://factory-why-hackathon.firebaseapp.com").
+    # Falls back to permissive localhost dev origins when unset, which is
+    # safe only because the API itself enforces Firebase ID token auth on
+    # every mutating endpoint — CORS here only controls which browser
+    # origins may *read responses*, not server-side authorization.
+    import os
+
+    allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "").strip()
+    if allowed_origins_env:
+        allow_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
+    else:
+        allow_origins = [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+        ]
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allow_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
 
     app.include_router(incidents.router, prefix="/api")
     return app

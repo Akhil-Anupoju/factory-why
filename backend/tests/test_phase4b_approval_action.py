@@ -38,6 +38,23 @@ def test_approve_allows_action_and_outcome():
     outcome_svc = OutcomeService(inc, au)
     outcome = outcome_svc.record_outcome("INC-2026-0827", ar, rec, action)
     assert outcome.outcome_id
+    assert outcome.is_simulated is True
+    assert outcome.pre_vibration == 12.42
+    assert outcome.post_vibration < outcome.pre_vibration
+    assert outcome.pre_temperature == 68.2
+    assert outcome.post_temperature < outcome.pre_temperature
+    assert outcome.post_temperature > 61.4
+    assert outcome.post_vibration < outcome.pre_vibration
+    assert outcome.post_vibration > 8.75
+    assert outcome.modeled_recovery_pct is not None
+    assert outcome.modeled_recovery_pct < 100
+    assert outcome.time_to_resolution_minutes > 0
+    assert outcome.actual_cause == "Bearing Misalignment & Asymmetric Preload"
+    assert "prototype projection" in outcome.observed_result.lower()
+    assert outcome.prediction_match is None
+    assert outcome.top_k_recall is None
+    assert outcome.accuracy_score_pct is None
+    assert outcome.physical_findings
 
 
 def test_reject_blocks_action():

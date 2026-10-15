@@ -59,7 +59,7 @@ describe('Approval & Action live wiring', () => {
     render(<App />);
 
     // Wait until ApprovalPanel renders with PENDING
-    await screen.findByText(/Review and sign off/);
+    await screen.findByRole('heading', { name: 'Human authorization' });
 
     const approveBtn = screen.getByText('Approve Action');
     fireEvent.click(approveBtn);
@@ -87,7 +87,7 @@ describe('Approval & Action live wiring', () => {
   it('approval 401 -> keeps the user signed in and shows an error', async () => {
     const postApprovalSpy = vi.spyOn(incidentApi as any, 'postApproval').mockRejectedValue(new ApiError('Authentication required', 401));
     render(<App />);
-    await screen.findByText(/Review and sign off/);
+    await screen.findByRole('heading', { name: 'Human authorization' });
     const approveBtn = screen.getByText('Approve Action');
     fireEvent.click(approveBtn);
     await waitFor(() => expect(postApprovalSpy).toHaveBeenCalled());
@@ -98,7 +98,7 @@ describe('Approval & Action live wiring', () => {
   it('approval 403 -> not authorized (no signout)', async () => {
     const postApprovalSpy = vi.spyOn(incidentApi as any, 'postApproval').mockRejectedValue(new ApiError('Forbidden', 403));
     render(<App />);
-    await screen.findByText(/Review and sign off/);
+    await screen.findByRole('heading', { name: 'Human authorization' });
     const approveBtn = screen.getByText('Approve Action');
     fireEvent.click(approveBtn);
     await waitFor(() => expect(postApprovalSpy).toHaveBeenCalled());
@@ -111,7 +111,7 @@ describe('Approval & Action live wiring', () => {
     const postActionSpy = vi.spyOn(incidentApi as any, 'postAction').mockRejectedValue(new ApiError('Authentication required', 401));
 
     render(<App />);
-    await screen.findByText(/Review and sign off/);
+    await screen.findByRole('heading', { name: 'Human authorization' });
     fireEvent.click(screen.getByText('Approve Action'));
     await waitFor(() => expect(postActionSpy).not.toHaveBeenCalled());
 
@@ -130,7 +130,7 @@ describe('Approval & Action live wiring', () => {
     const postApprovalSpy = vi.spyOn(incidentApi as any, 'postApproval').mockImplementation(() => approvalPromise as any);
 
     render(<App />);
-    await screen.findByText(/Review and sign off/);
+    await screen.findByRole('heading', { name: 'Human authorization' });
     const approveBtn = screen.getByText('Approve Action');
     // click twice quickly
     fireEvent.click(approveBtn);
@@ -148,7 +148,7 @@ describe('Approval & Action live wiring', () => {
     const postActionSpy = vi.spyOn(incidentApi as any, 'postAction').mockImplementation(() => actionPromise as any);
 
     render(<App />);
-    await screen.findByText(/Review and sign off/);
+    await screen.findByRole('heading', { name: 'Human authorization' });
     fireEvent.click(screen.getByText('Approve Action'));
     await screen.findByText(/Action Formally Authorized by/);
     const execBtn = await screen.findByText(/Submit action and load outcome/);

@@ -1,8 +1,66 @@
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import copy
 
 from ..adk.state import InvestigationState, AuditEvent, EvidenceRef, AssetContext
+
+
+# Allowlisted tools, keyed by keyword groups that commonly appear in a
+# hypothesis's `next_discriminating_check` / `missing_evidence` text. Used
+# ONLY as a deterministic fallback when a human engineer explicitly requests
+# additional evidence but the Critic's own (live, Gemini-driven) judgment did
+# not independently flag a retrieval target. This keeps the "what to fetch"
+# decision grounded in the AI's own reasoning whenever available, and falls
+# back to a fixed, auditable rule only when it did not.
+_FALLBACK_TOOL_KEYWORDS: list[tuple[tuple[str, ...], str]] = [
+    (("thermal", "image", "flir", "optical", "inspection"), "get_inspection_image"),
+    (("manual", "spec", "tolerance", "section"), "search_manual"),
+    (("prior incident", "historical", "archive", "similar"), "get_prior_incidents"),
+    (("work order", "maintenance", "service history", "technician"), "get_maintenance_history"),
+    (("telemetry", "vibration window", "sensor window", "time series"), "get_telemetry_window"),
+]
+
+
+def derive_fallback_retrieval_request(hypothesis: Any, state: InvestigationState) -> Optional[Dict[str, Any]]:
+    """Deterministically pick an allowlisted tool (and its required params)
+    to call when a human requests more evidence but the Critic did not
+    request a specific one.
+
+    Reads only data already present on the hypothesis (next_discriminating_check,
+    missing_evidence) — never invents a tool/target that wasn't already
+    identified as a gap by an upstream agent.
+    """
+    text = " ".join(
+        filter(
+            None,
+            [
+                getattr(hypothesis, "next_discriminating_check", None) or "",
+                " ".join(getattr(hypothesis, "missing_evidence", None) or []),
+            ],
+        )
+    ).lower()
+    if not text.strip():
+        return None
+
+    asset_id = state.asset_context.asset_id if state.asset_context else None
+    gap_description = getattr(hypothesis, "next_discriminating_check", None) or (
+        (getattr(hypothesis, "missing_evidence", None) or [""])[0]
+    )
+
+    def _params(tool: str) -> Dict[str, Any]:
+        if tool == "get_inspection_image":
+            return {"incident_id": state.incident_id}
+        if tool == "search_manual":
+            return {"query": gap_description or "root cause investigation", "asset_id": asset_id}
+        # get_prior_incidents, get_maintenance_history, get_telemetry_window, get_asset_context
+        return {"asset_id": asset_id}
+
+    for keywords, tool in _FALLBACK_TOOL_KEYWORDS:
+        if any(k in text for k in keywords):
+            return {"tool": tool, "params": _params(tool)}
+    # Conservative default: re-pull asset context rather than guessing a
+    # more invasive/unrelated tool.
+    return {"tool": "get_asset_context", "params": _params("get_asset_context")}
 
 
 class RootOrchestrator:
@@ -26,7 +84,7 @@ class RootOrchestrator:
         state = InvestigationState(incident_id=incident_id)
         return state
 
-    def run(self, state: InvestigationState) -> InvestigationState:
+    def run(self, state: InvestigationState, force_targeted_retrieval: bool = False) -> InvestigationState:
         # Record orchestrator start
         state.record_audit(
             AuditEvent(
@@ -158,8 +216,19 @@ class RootOrchestrator:
                         # validation/audit already recorded by CriticAgent
                         cf = None
 
-                # If critic requested more evidence, perform ONE targeted retrieval pass
-                if cf and getattr(cf, "request_more_evidence", None):
+                # If critic requested more evidence, perform ONE targeted retrieval pass.
+                # When a human explicitly asked for more evidence (force_targeted_retrieval)
+                # but the Critic's own live judgment did not independently flag a target,
+                # fall back to a deterministic rule derived from the leading hypothesis's
+                # own stated gap — never fabricate a target the agents haven't already
+                # identified.
+                retrieval_request = getattr(cf, "request_more_evidence", None) if cf else None
+                retrieval_was_human_directed = False
+                if not retrieval_request and force_targeted_retrieval:
+                    retrieval_request = derive_fallback_retrieval_request(state.hypotheses[0], state)
+                    retrieval_was_human_directed = retrieval_request is not None
+
+                if retrieval_request:
                     state.record_audit(
                         AuditEvent(
                             event_id="AUD-TARGETED-EVIDENCE-REQUEST",
@@ -167,15 +236,15 @@ class RootOrchestrator:
                             timestamp="1970-01-01T00:00:00Z",
                             agent_role="root_orchestrator",
                             tool_call="targeted_retrieval",
-                            summary="Targeted evidence requested by Critic",
-                            request_payload={"request": cf.request_more_evidence},
+                            summary="Targeted evidence requested by Critic" if not retrieval_was_human_directed else "Targeted evidence requested by engineer (Critic did not flag a target)",
+                            request_payload={"request": retrieval_request, "human_directed": retrieval_was_human_directed},
                             response_payload={},
                             status="STARTED",
                         )
                     )
 
                     # Execute the requested allowlisted tool once
-                    req = cf.request_more_evidence
+                    req = retrieval_request
                     tool_name = req.get("tool")
                     params = req.get("params") or {}
                     state.record_audit(

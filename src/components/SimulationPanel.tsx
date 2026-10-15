@@ -67,7 +67,7 @@ export const SimulationPanel: React.FC<SimulationPanelProps> = ({
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={() => setShowAssumptionsDrawer(!showAssumptionsDrawer)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-colors border ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-colors border ${
               showAssumptionsDrawer
                 ? 'bg-cyan-500/20 text-cyan-700 border-cyan-500/50'
                 : 'bg-slate-200 hover:bg-slate-300 text-slate-800 border-slate-300'
@@ -184,7 +184,7 @@ export const SimulationPanel: React.FC<SimulationPanelProps> = ({
         </div>
       )}
 
-      {/* 3 Response Options Comparison Grid - Reflows smoothly across widths */}
+      {/* The action comparison stays visible with default assumptions; changing assumptions recalculates it. */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4 items-stretch">
         {simulationResults.map((res) => {
           const isSelected = selectedOption === res.option;

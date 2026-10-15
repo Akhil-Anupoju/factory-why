@@ -10,7 +10,8 @@ import {
   Check,
   ShieldCheck,
   Lock,
-  XCircle
+  XCircle,
+  HelpCircle
 } from 'lucide-react';
 import { OutcomeRecord } from '../types';
 
@@ -57,7 +58,7 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
           </div>
           <div>
             <h2 className="text-xs font-bold font-mono tracking-wider text-emerald-700 uppercase">
-              Inspection result
+              {outcome.is_simulated ? 'Simulated inspection result' : 'Inspection result'}
             </h2>
             <div className="text-[11px] text-slate-600 font-mono">
               Outcome Reference: <span className="text-slate-800">{outcome.outcome_id}</span>
@@ -67,9 +68,9 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
 
         {/* Prediction Match Indicator */}
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 max-w-full">
-          <span className={`text-xs font-bold font-mono border px-2.5 py-1 rounded flex items-center gap-1.5 shadow-sm truncate ${outcome.prediction_match ? 'text-emerald-700 bg-emerald-50 border-emerald-500/50' : 'text-amber-800 bg-amber-50 border-amber-400/50'}`}>
-            {outcome.prediction_match ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
-            <span className="truncate">{outcome.prediction_match ? 'PREDICTION MATCHED' : 'PREDICTION DID NOT MATCH'}</span>
+          <span className={`text-xs font-bold font-mono border px-2.5 py-1 rounded flex items-center gap-1.5 shadow-sm truncate ${outcome.prediction_match === true ? 'text-emerald-700 bg-emerald-50 border-emerald-500/50' : 'text-amber-800 bg-amber-50 border-amber-400/50'}`}>
+            {outcome.prediction_match === true ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : outcome.prediction_match == null ? <HelpCircle className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+            <span className="truncate">{outcome.is_simulated ? 'SIMULATED · ' : ''}{outcome.prediction_match == null ? 'PREDICTION UNVERIFIED' : outcome.prediction_match ? 'PREDICTION MATCHED' : 'PREDICTION DID NOT MATCH'}</span>
           </span>
         </div>
       </div>
@@ -77,7 +78,7 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
       {/* Actual Ground Truth Statement */}
       <div className="bg-slate-50 border border-emerald-500/30 rounded-lg p-3 space-y-2 w-full min-w-0">
         <div className="text-[10px] font-mono uppercase text-emerald-600 font-bold tracking-wider">
-          Actual Confirmed Root Cause
+          {outcome.is_simulated ? 'Modeled Leading Cause' : 'Actual Confirmed Root Cause'}
         </div>
         <h3 className="text-sm md:text-base font-bold text-slate-900 font-sans break-anywhere">
           {outcome.actual_cause}
@@ -85,11 +86,16 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
         <p className="text-xs text-slate-700 leading-relaxed font-sans break-anywhere">
           {outcome.observed_result}
         </p>
+        {outcome.is_simulated && (
+          <p className="rounded border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] font-mono text-amber-900 break-anywhere">
+            Prototype simulation only: these post-values are modeled from the incident baselines, not collected physical measurements.
+          </p>
+        )}
 
         {/* Physical Findings List */}
         <div className="pt-2 border-t border-slate-200/80">
           <span className="text-[10px] font-mono uppercase text-slate-600 block mb-1">
-            Shop Floor Physical Findings:
+            {outcome.is_simulated ? 'SIMULATED INSPECTION FINDINGS:' : 'SHOP FLOOR PHYSICAL FINDINGS:'}
           </span>
           <div className="space-y-1">
             {outcome.physical_findings.map((f, i) => (
@@ -146,17 +152,17 @@ export const OutcomePanel: React.FC<OutcomePanelProps> = ({ outcome }) => {
         {/* Resolution Time & Accuracy Score */}
         <div className="bg-slate-50/80 border border-slate-200 p-2.5 rounded flex flex-col justify-between min-w-0">
           <div className="flex justify-between items-center text-[10px] text-slate-600 uppercase">
-            <span>Evaluation Score</span>
-            <span className="text-cyan-700 font-bold">{outcome.accuracy_score_pct} / 100</span>
+            <span>{outcome.is_simulated ? 'Modeled recovery' : 'Evaluation score'}</span>
+            <span className="text-cyan-700 font-bold">{outcome.is_simulated ? `${outcome.modeled_recovery_pct ?? 0}% modeled` : outcome.accuracy_score_pct === null ? '—' : `${outcome.accuracy_score_pct} / 100`}</span>
           </div>
           <div className="flex items-baseline justify-between mt-1.5">
             <div>
-              <span className="text-slate-500 text-[10px] block">RESOLUTION:</span>
-              <span className="text-slate-900 font-bold">{outcome.time_to_resolution_minutes} Minutes</span>
+              <span className="text-slate-500 text-[10px] block">{outcome.is_simulated ? 'MODELED DURATION:' : 'RESOLUTION:'}</span>
+              <span className="text-slate-900 font-bold">{outcome.is_simulated ? '—' : `${outcome.time_to_resolution_minutes} Minutes`}</span>
             </div>
             <div>
               <span className="text-slate-500 text-[10px] block">BENCHMARK:</span>
-              <span className="text-emerald-600 font-bold">{outcome.top_k_recall ? 'PASS' : 'REVIEW'}</span>
+              <span className="text-emerald-600 font-bold">{outcome.top_k_recall == null ? 'UNVERIFIED' : outcome.top_k_recall ? 'PASS' : 'REVIEW'}</span>
             </div>
           </div>
         </div>

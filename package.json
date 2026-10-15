@@ -17,7 +17,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
-    "firebase": "^10.13.0",
+    "firebase": "^10.14.1",
     "jsdom": "^22.1.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
@@ -37,6 +37,10 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2",
-    "vitest": "^1.2.1"
+    "vitest": "^5.0.4"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.13.6",
+    "undici": "^6.28.1"
   }
 }

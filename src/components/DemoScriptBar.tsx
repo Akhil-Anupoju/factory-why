@@ -57,7 +57,7 @@ export const DEMO_BEATS: DemoBeat[] = [
   {
     id: 5,
     timeRange: '1:20 - 1:40',
-    screenAction: 'Open the challenge to the leading theory',
+    screenAction: 'Open the Critic section and run an AI critique',
     narration: '“Now we ask the question we built the product around: what would prove the leading hypothesis wrong?”',
     judgeTakeaway: 'Visible innovation: Self-challenging reasoning',
     targetAnchor: 'critic'
@@ -65,8 +65,8 @@ export const DEMO_BEATS: DemoBeat[] = [
   {
     id: 6,
     timeRange: '1:40 - 2:00',
-    screenAction: 'Review the challenge, then continue to action options',
-    narration: '“The critic identifies dial indicator / laser runout measurement (< 0.02 mm) as the single discriminating check.”',
+    screenAction: 'Read the Critic findings and falsification check',
+    narration: '“The critic names what would disprove the leading explanation and points to the next discriminating physical check.”',
     judgeTakeaway: 'Bounded critique prevents hallucinations',
     targetAnchor: 'critic'
   },

@@ -1,4 +1,5 @@
 import type { InvestigationCase } from './types';
+import { computeDecisionReadiness } from './decisionReadiness';
 
 export interface InvestigationNextStep {
   stage: string;
@@ -29,10 +30,22 @@ export function investigationNextStep(currentCase: InvestigationCase): Investiga
     return { stage: 'why', anchor: 'hypotheses', description: 'The leading explanation is still being developed.', buttonLabel: 'View explanations' };
   }
   if (decision === 'CHALLENGE' || !currentCase.critic_finding) {
-    return { stage: 'critic', anchor: 'critic', description: 'Challenge the leading explanation against conflicting evidence.', buttonLabel: 'Review the challenge' };
+    return { stage: 'critic', anchor: 'critic', description: 'Inspect how the AI Critic tests the leading explanation against evidence.', buttonLabel: 'Go to Critic section' };
   }
   if (!currentCase.recommendation || !currentCase.simulation_results?.length) {
     return { stage: 'simulate', anchor: 'simulation', description: 'Compare possible responses before seeking a human decision.', buttonLabel: 'Compare options' };
+  }
+
+  // Recommendation + simulation are ready and the decision is still
+  // pending: tell the engineer the single highest-value action instead of
+  // leaving them to guess between Request Evidence / Check readiness /
+  // Challenge the hypothesis / approve.
+  const readiness = computeDecisionReadiness(currentCase);
+  if (readiness.recommendedAction.action === 'RUN_CRITIQUE') {
+    return { stage: 'critic', anchor: 'critic', description: readiness.recommendedAction.reason, buttonLabel: 'Go to Critic section' };
+  }
+  if (readiness.recommendedAction.action === 'REQUEST_EVIDENCE') {
+    return { stage: 'approve', anchor: 'approval', description: readiness.recommendedAction.reason, buttonLabel: 'Go to Human authorization' };
   }
   return { stage: 'approve', anchor: 'approval', description: currentCase.recommendation.next_step || 'Review the recommended action and make a decision.', buttonLabel: 'Review recommendation' };
 }
