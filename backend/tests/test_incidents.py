@@ -77,6 +77,7 @@ def test_list_incidents_includes_fresh_test_cases():
 def test_list_incidents_hides_resolved_cases():
     repo = app.state.deps["incident_repo"]
     original = copy.deepcopy(repo.get_incident("INC-2026-0902"))
+    assert original is not None
     try:
         resolved = {**original, "outcome": {"outcome_id": "OUT-TEST", "actual_cause": "fixture test"}}
         repo.upsert_incident(resolved)
@@ -107,13 +108,20 @@ def test_list_incidents_hides_resolved_cases():
 
 def test_list_incidents_hides_incomplete_legacy_records():
     repo = app.state.deps["incident_repo"]
+    original = copy.deepcopy(repo.get_incident("INTEGRATION-TEST-INCIDENT"))
     repo.upsert_incident({"incident_id": "INTEGRATION-TEST-INCIDENT", "asset": {"asset_id": "CNC-04"}})
     try:
         response = client.get("/api/incidents")
         assert response.status_code == 200
         assert "INTEGRATION-TEST-INCIDENT" not in {item["incident_id"] for item in response.json()}
     finally:
-        repo._data.pop("INTEGRATION-TEST-INCIDENT", None)
+        if original is None:
+            # Repository Protocol intentionally exposes no delete operation;
+            # reset the in-memory repo between tests without assuming its
+            # concrete storage implementation in the test assertion.
+            repo._data.pop("INTEGRATION-TEST-INCIDENT", None)
+        else:
+            repo.upsert_incident(original)
 
 
 def test_simulate_endpoint():
