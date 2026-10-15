@@ -2,6 +2,8 @@ node_modules/
 build/
 dist/
 coverage/
+.graphify/
+graphify-out/
 .firebase/
 .firebaserc.local
 .DS_Store
