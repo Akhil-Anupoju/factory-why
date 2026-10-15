@@ -34,10 +34,10 @@ describe('streamApi', () => {
 
     // First call simulates 401 Unauthorized, second call returns the stream
     let call = 0;
-    global.fetch = vi.fn((url: string, opts: any) => {
+    global.fetch = vi.fn((_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
       call++;
-      if (call === 1) return Promise.resolve({ ok: false, status: 401, statusText: 'Unauthorized' } as any);
-      return Promise.resolve({ ok: true, body: rs } as any);
+      if (call === 1) return Promise.resolve({ ok: false, status: 401, statusText: 'Unauthorized' } as Response);
+      return Promise.resolve({ ok: true, body: rs } as Response);
     });
 
     const events: any[] = [];

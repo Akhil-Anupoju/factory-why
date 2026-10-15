@@ -65,6 +65,47 @@ def get_incident(
     return JSONResponse(content=merged)
 
 
+@router.get("/incidents")
+def list_incidents(inc_repo=Depends(get_incident_repo)):
+    """List incidents for the case selector without returning evidence payloads."""
+    incidents = inc_repo.list_incidents() or []
+    summaries = []
+    for incident in incidents:
+        asset = incident.get("asset") or {}
+        status = str(incident.get("status") or "").upper()
+        approval = incident.get("approval") or {}
+        outcome = incident.get("outcome")
+        decision = str(approval.get("decision") or "").upper() if isinstance(approval, dict) else ""
+        is_resolved = (
+            incident.get("incident_id") == "INC-2026-0827"
+            or bool(outcome)
+            or status in {"RESOLVED", "RESOLVED_EVALUATED", "CLOSED"}
+            or decision == "REJECTED"
+        )
+        if is_resolved:
+            continue
+        # Do not advertise partial/legacy Firestore records in the selector;
+        # the detail endpoint/frontend need these fields to render a case.
+        if (
+            not isinstance(incident.get("incident_id"), str)
+            or not isinstance(incident.get("telemetry_series"), list)
+            or not isinstance(incident.get("telemetry_summary"), dict)
+            or not isinstance(asset, dict)
+            or not isinstance(asset.get("components"), list)
+            or not isinstance(incident.get("recommendation"), dict)
+            or not isinstance(approval, dict)
+        ):
+            continue
+        summaries.append({
+            "incident_id": incident["incident_id"],
+            "title": incident.get("title") or incident.get("description") or incident["incident_id"],
+            "asset_id": asset.get("asset_id"),
+            "severity": incident.get("severity", "HIGH"),
+            "status": approval.get("decision", "PENDING"),
+        })
+    return JSONResponse(content=summaries)
+
+
 @router.get("/incidents/{incident_id}/audit")
 def get_audit(incident_id: str, au_repo=Depends(get_audit_repo), inc_repo=Depends(get_incident_repo)):
     # Ensure incident exists first
@@ -422,3 +463,62 @@ def post_challenge(
         raise HTTPException(status_code=502, detail=f"Live investigation unavailable: {ex}")
 
     return JSONResponse(content=result["critic_finding"])
+
+
+@router.post("/incidents/{incident_id}/request-evidence")
+def post_request_evidence(
+    incident_id: str,
+    body: Dict[str, Any],
+    request: Request,
+    inc_repo=Depends(get_incident_repo),
+    ev_repo=Depends(get_evidence_repo),
+    au_repo=Depends(get_audit_repo),
+    te_repo=Depends(get_telemetry_repo),
+    st_repo=Depends(get_storage_repo),
+):
+    """Human-directed counterpart to /challenge: the engineer explicitly asks
+    the investigation to go retrieve the evidence that would close the
+    biggest known gap on the leading hypothesis, rather than waiting for the
+    Critic to independently decide to request it.
+
+    Runs the same live ADK + Gemini/Vertex AI pipeline (Evidence -> WHY ->
+    Critic), but guarantees a targeted-retrieval attempt: if the Critic's own
+    live judgment doesn't flag a retrieval target, a deterministic rule picks
+    one from the leading hypothesis's own stated evidence gap
+    (next_discriminating_check / missing_evidence) — never a fabricated
+    target. This mutates persisted Firestore state and makes a billed Vertex
+    AI call, so it requires authentication; this is a non-destructive
+    investigation step (not an approval/dispatch decision), so it does not
+    require the reliability_engineer role.
+    """
+    incident = inc_repo.get_incident(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="incident not found")
+
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    id_token = auth_header.split(" ", 1)[1].strip()
+    auth_svc = get_auth_service(request)
+    try:
+        auth_svc.verify_token(id_token)
+    except ExpiredTokenError:
+        raise HTTPException(status_code=401, detail="Expired token")
+    except InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token verification failed")
+
+    from ..services.investigation_service import run_live_targeted_evidence_retrieval, LiveInvestigationError
+
+    try:
+        result = run_live_targeted_evidence_retrieval(incident_id, inc_repo, ev_repo, au_repo, te_repo, st_repo)
+    except LiveInvestigationError as ex:
+        raise HTTPException(status_code=502, detail=f"Live investigation unavailable: {ex}")
+
+    return JSONResponse(content={
+        "hypotheses": result["hypotheses"],
+        "critic_finding": result["critic_finding"],
+        "evidence_added": result["evidence_added"],
+        "new_evidence_ids": result["new_evidence_ids"],
+    })

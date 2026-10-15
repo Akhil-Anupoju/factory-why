@@ -1,5 +1,8 @@
 {
   "incident_id": "INC-2026-0827",
+  "title": "Spindle Bearing Misalignment",
+  "description": "Fresh-start CNC-04 investigation for a correlated spindle vibration, temperature, and drive-current anomaly.",
+  "severity": "HIGH",
   "asset": {
     "asset_id": "CNC-04",
     "name": "CNC-04 5-Axis Precision Machining Center",

@@ -201,6 +201,8 @@ export interface ActionRecord {
 export interface OutcomeRecord {
   outcome_id: string;
   incident_id: string;
+  is_simulated?: boolean;
+  modeled_recovery_pct?: number | null;
   actual_cause: string;
   observed_result: string;
   physical_findings: string[];
@@ -208,10 +210,10 @@ export interface OutcomeRecord {
   post_vibration: number;
   pre_temperature: number;
   post_temperature: number;
-  prediction_match: boolean;
-  top_k_recall: boolean;
+  prediction_match: boolean | null;
+  top_k_recall: boolean | null;
   time_to_resolution_minutes: number;
-  accuracy_score_pct: number;
+  accuracy_score_pct: number | null;
 }
 
 export interface AuditEvent {
@@ -228,6 +230,9 @@ export interface AuditEvent {
 
 export interface InvestigationCase {
   incident_id: string;
+  title?: string;
+  description?: string;
+  severity?: string;
   asset: AssetContext;
   telemetry_summary: TelemetrySummary;
   telemetry_series: TelemetryPoint[];

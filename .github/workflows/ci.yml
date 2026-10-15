@@ -11,7 +11,6 @@ jobs:
     strategy:
       matrix:
         python: [3.12]
-        node: [18.x]
 
     steps:
       - uses: actions/checkout@v4
@@ -21,30 +20,14 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-
       - name: Install backend dependencies
-        working-directory: backend
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r <(python - <<'PY'
-import tomllib,sys
-print('\n'.join(['-r requirements.txt']) )
-PY)
-
-      - name: Install backend runtime deps (minimal)
-        working-directory: backend
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "fastapi>=0.99" "pydantic>=2.3" "uvicorn[standard]"
+          python -m pip install -e "./backend[dev]"
 
       - name: Run backend tests
-        working-directory: backend
         run: |
-          python -m pytest -q tests
+          python -m pytest -q backend/tests
 
   frontend:
     name: Frontend lint & build
@@ -55,7 +38,7 @@ PY)
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18.x
+          node-version: 22.x
 
       - name: Install frontend deps
         run: |

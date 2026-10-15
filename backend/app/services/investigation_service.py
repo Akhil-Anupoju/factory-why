@@ -134,6 +134,49 @@ def run_live_critic_challenge(
     Raises LiveInvestigationError on any failure — callers must surface
     this as an explicit error, never a silent fallback to fixture data.
     """
+    return _run_live_pipeline(
+        incident_id, incident_repo, evidence_repo, audit_repo, telemetry_repo, storage_repo,
+        force_targeted_retrieval=False,
+    )
+
+
+def run_live_targeted_evidence_retrieval(
+    incident_id: str,
+    incident_repo: Any,
+    evidence_repo: Any,
+    audit_repo: Any,
+    telemetry_repo: Any,
+    storage_repo: Any,
+) -> Dict[str, Any]:
+    """Human-directed counterpart to run_live_critic_challenge.
+
+    Runs the same live Evidence -> WHY -> Critic pipeline, but GUARANTEES a
+    targeted-retrieval attempt even if the Critic's own live judgment did not
+    independently flag one. The retrieval target still comes from an
+    existing agent signal (the Critic's own `request_more_evidence`, or a
+    deterministic rule derived from the leading hypothesis's own stated
+    evidence gap) — never fabricated.
+
+    This gives the engineer a direct, human-initiated "go get the evidence
+    that would close the biggest gap" action, distinct from "Run AI
+    critique" (which only tests the leading hypothesis for contradictions).
+    """
+    return _run_live_pipeline(
+        incident_id, incident_repo, evidence_repo, audit_repo, telemetry_repo, storage_repo,
+        force_targeted_retrieval=True,
+    )
+
+
+def _run_live_pipeline(
+    incident_id: str,
+    incident_repo: Any,
+    evidence_repo: Any,
+    audit_repo: Any,
+    telemetry_repo: Any,
+    storage_repo: Any,
+    *,
+    force_targeted_retrieval: bool,
+) -> Dict[str, Any]:
     model_config = ModelConfigLoader.load_from_env()
     if (model_config.provider or "").lower() != "vertex_ai":
         raise LiveInvestigationError(
@@ -163,7 +206,7 @@ def run_live_critic_challenge(
     runner = ADKRunner(services={})
 
     try:
-        result_state = runner.run_workflow(orchestrator, state, force_live=True)
+        result_state = runner.run_workflow(orchestrator, state, force_live=True, force_targeted_retrieval=force_targeted_retrieval)
     except Exception as ex:  # noqa: BLE001 - surface as a safe, typed error
         logger.exception("Live ADK investigation failed for incident %s", incident_id)
         raise LiveInvestigationError(f"Live investigation pipeline failed: {ex.__class__.__name__}: {ex}") from ex
@@ -187,6 +230,7 @@ def run_live_critic_challenge(
     updated_incident = {**incident, "hypotheses": validated_hyps, "critic_finding": validated_critic}
     incident_repo.upsert_incident(updated_incident)
 
+    newly_added_evidence_ids: List[str] = []
     for ev in result_state.evidence:
         existing = evidence_repo.get_evidence(incident_id, ev.evidence_id)
         if not existing:
@@ -204,6 +248,7 @@ def run_live_critic_challenge(
                     "status": "Observed",
                     "confidence": ev.confidence or "Medium",
                 })
+                newly_added_evidence_ids.append(ev.evidence_id)
             except Exception:
                 logger.exception("failed to persist targeted-retrieval evidence %s", ev.evidence_id)
 
@@ -223,7 +268,12 @@ def run_live_critic_challenge(
         except Exception:
             logger.exception("failed to persist audit event %s", evt.event_id)
 
-    return {"hypotheses": validated_hyps, "critic_finding": validated_critic, "evidence_added": len(result_state.evidence)}
+    return {
+        "hypotheses": validated_hyps,
+        "critic_finding": validated_critic,
+        "evidence_added": len(newly_added_evidence_ids),
+        "new_evidence_ids": newly_added_evidence_ids,
+    }
 
 
 def _map_agent_role(role: str) -> str:

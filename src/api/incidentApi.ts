@@ -1,5 +1,13 @@
-import { InvestigationCase, ApprovalRecord, ActionRecord, OutcomeRecord, AuditEvent } from '../types';
+import { InvestigationCase, ApprovalRecord, ActionRecord, OutcomeRecord, AuditEvent, Hypothesis, CriticFinding } from '../types';
 import { authFetch, ApiError as ClientApiError } from './apiClient';
+
+export interface IncidentSummary {
+  incident_id: string;
+  title: string;
+  asset_id: string;
+  severity: string;
+  status: string;
+}
 
 class ApiError extends Error {
   status: number | null;
@@ -18,6 +26,19 @@ function getApiBase(): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const v = (import.meta as any).env?.VITE_API_BASE_URL;
   return v || '';
+}
+
+export async function fetchIncidents(): Promise<IncidentSummary[]> {
+  const base = getApiBase().replace(/\/$/, '');
+  const path = `${base}/api/incidents`.replace('//api', '/api');
+  const res = await authFetch(path, { method: 'GET' });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new ApiError(`API error: ${res.status} ${res.statusText} - ${text}`, res.status);
+  }
+  const payload: unknown = await res.json();
+  if (!Array.isArray(payload)) throw new ApiError('Malformed incident list payload');
+  return payload as IncidentSummary[];
 }
 
 export async function fetchIncident(incidentId: string): Promise<InvestigationCase> {
@@ -200,5 +221,74 @@ export async function postChallenge(incidentId: string, body: Record<string, any
     throw new ApiError(`Failed to parse JSON response: ${err?.message || err}`, res.status);
   }
 
+  if (!res.ok) {
+    // The backend's live ADK/Gemini pipeline failed (e.g. 502 "Live
+    // investigation unavailable"). Do NOT treat the error body as if it
+    // were a valid CriticFinding — that previously caused the UI to show
+    // a false success toast and silently store a malformed object. Throw
+    // the SAME ApiError class App.tsx's `instanceof` checks expect
+    // (apiClient's, not this file's local one) so status-specific
+    // handling (401/403/502/etc.) actually fires.
+    const detail = (payload as any)?.detail || res.statusText;
+    throw new ClientApiError(`Challenge failed: ${detail}`, res.status);
+  }
+
+  const finding = payload as Partial<CriticFinding> | null;
+  if (!finding || typeof finding.target_hypothesis_id !== 'string' || typeof finding.falsification_condition !== 'string') {
+    throw new ClientApiError('Challenge returned an invalid Critic finding. The result was not applied.', res.status);
+  }
+
   return payload;
+}
+
+export interface RequestEvidenceResult {
+  hypotheses: Hypothesis[];
+  critic_finding: CriticFinding;
+  evidence_added: number;
+  new_evidence_ids: string[];
+}
+
+/**
+ * Human-directed targeted evidence retrieval. Distinct from postChallenge:
+ * guarantees a live retrieval attempt (Evidence -> WHY -> Critic, with the
+ * retrieval target coming from the Critic's own judgment or, failing that,
+ * a deterministic rule over the leading hypothesis's own stated gap) even
+ * when the Critic's live pass alone would not have requested one.
+ */
+export async function postRequestEvidence(incidentId: string, body: Record<string, any> = {}): Promise<RequestEvidenceResult> {
+  const base = getApiBase().replace(/\/$/, '');
+  const path = `${base}/api/incidents/${encodeURIComponent(incidentId)}/request-evidence`.replace('//api', '/api');
+
+  let res: Response;
+  try {
+    res = await authFetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch (err: any) {
+    if (err instanceof ClientApiError) throw err;
+    throw new ClientApiError(`Network error while requesting evidence: ${err?.message || err}`, null);
+  }
+
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch (err: any) {
+    throw new ApiError(`Failed to parse JSON response: ${err?.message || err}`, res.status);
+  }
+
+  if (!res.ok) {
+    const detail = (payload as any)?.detail || res.statusText;
+    throw new ClientApiError(`Evidence retrieval failed: ${detail}`, res.status);
+  }
+
+  const result = payload as Partial<RequestEvidenceResult> | null;
+  if (
+    !result ||
+    !Array.isArray(result.hypotheses) ||
+    !result.critic_finding ||
+    typeof result.evidence_added !== 'number' ||
+    !Array.isArray(result.new_evidence_ids)
+  ) {
+    throw new ClientApiError('Evidence retrieval returned an invalid result. The result was not applied.', res.status);
+  }
+
+  return payload as RequestEvidenceResult;
 }

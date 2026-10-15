@@ -20,24 +20,21 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
   onEvidenceClick,
 }) => {
   return (
-    <div id="recommendation" className="bg-white border border-cyan-500/40 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 relative overflow-hidden w-full min-w-0">
-      {/* Visual Accent */}
-      <div className="absolute top-0 right-0 w-48 h-24 bg-cyan-500/10 rounded-full blur-xl pointer-events-none" />
-
+    <div id="recommendation" className="fw-panel bg-white border border-cyan-500/40 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
-        <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-col items-start gap-2 border-b border-slate-200 pb-2">
+        <div className="flex min-w-0 items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-cyan-600 shrink-0" />
-          <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
-            Synthesized Next-Step Recommendation
+          <h2 className="min-w-0 text-xs font-bold font-mono tracking-wider text-slate-800 uppercase break-anywhere">
+            Recommended next step
           </h2>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <span className="text-[10px] font-mono text-slate-600 uppercase">Urgency:</span>
-          <span className="text-xs font-bold font-mono text-rose-700 bg-rose-50/80 border border-rose-300/60 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
+        <div className="flex w-full min-w-0 flex-wrap items-start gap-2 sm:w-auto">
+          <span className="shrink-0 pt-1 text-[10px] font-mono text-slate-600 uppercase">Urgency:</span>
+          <span className="inline-flex min-w-0 max-w-full items-start gap-1 rounded border border-rose-300/60 bg-rose-50/80 px-2 py-1 text-xs font-bold font-mono text-rose-700 whitespace-normal break-anywhere">
             <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
-            {recommendation.urgency} ({recommendation.time_window})
+            <span className="min-w-0 break-anywhere">{recommendation.urgency} ({recommendation.time_window})</span>
           </span>
         </div>
       </div>
@@ -45,7 +42,7 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
       {/* Main Recommendation Statement */}
       <div className="bg-slate-50/90 border border-cyan-500/30 rounded-lg p-3 w-full min-w-0">
         <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-600 font-bold mb-1">
-          Authorized Engineering Action Proposed
+          Proposed action · Requires human approval
         </div>
         <h3 className="text-sm md:text-base font-bold text-slate-900 font-sans flex items-start gap-2 break-anywhere">
           <span className="text-cyan-600 font-mono shrink-0">▶</span>

@@ -423,7 +423,7 @@ The Action Agent is physically and logically incapable of creating work orders o
 1. **Approve Action (Primary):** Authenticates the engineer, records digital signature hash, transitions incident status to `ACTION_AUTHORIZED`, and unlocks the Simulated Action Panel.
 2. **Reject:** Records rejection rationale and terminates investigation workflow.
 3. **Request More Evidence:** Emits a request for targeted data collection (e.g., portable vibration spectrum analyzer).
-4. **Challenge AI:** Invokes the Critic Agent to re-evaluate invariants.
+4. **Challenge the Hypothesis:** Invokes the Critic Agent to test the leading explanation against conflicting evidence and identify a falsifying observation.
 
 ---
 
@@ -542,7 +542,7 @@ Every agent step, tool call, request payload, response object, and human decisio
 | **Select Component** | Highlights twin node, filters evidence & telemetry | Filter cached twin graph | `{ component_id: "BEARING-B04" }` | No change | No | No |
 | **Scrub Telemetry** | Cursor moves across chart; 5 metric cards update | Query time-slice buffer | `{ timestamp: "2026-09-22T14:18:00Z" }` | No change | No | No |
 | **Inspect Provenance**| Opens full-screen inspector modal | `GET /api/evidence/{id}` | Formatted payload, snippet, image | No change | `inspect_evidence` | No |
-| **Challenge AI** | Critic button spins; highlights falsification rule | `POST /api/incidents/{id}/challenge` | Falsification condition & contradictions | `CRITIQUE_COMPLETE` | `critic_agent_evaluate` | No |
+| **Challenge the Hypothesis** | Critic button shows progress; displays falsification rule | `POST /api/incidents/{id}/challenge` | Falsification condition & contradictions | `CRITIQUE_COMPLETE` | `critic_agent_evaluate` | No |
 | **Adjust Assumptions**| Slider changes; metrics & trace recalculate in pure code | Local deterministic call or `POST /api/simulate` | Updated cost & exposure outputs | `SIMULATION_UPDATED` | None (Local calculation) | No |
 | **Approve Action** | Gate turns green; unlocks Action Dispatch card | `POST /api/incidents/{id}/approve` | `{ decision: "APPROVED", comment: string }` | `APPROVED` | `approve_recommendation` | **Yes (Engineer)** |
 | **Reject Action** | Gate turns red; action remains blocked | `POST /api/incidents/{id}/reject` | `{ decision: "REJECTED", reason: string }` | `REJECTED` | `reject_recommendation` | **Yes (Engineer)** |

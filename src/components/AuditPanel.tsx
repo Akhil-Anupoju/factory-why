@@ -32,14 +32,14 @@ export const AuditPanel: React.FC<AuditPanelProps> = ({ auditTrail }) => {
   });
 
   return (
-    <div id="audit" className="bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
+    <div id="audit" className="fw-panel bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">
           <Terminal className="w-4 h-4 text-cyan-600 shrink-0" />
           <div>
             <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
-              End-to-End ADK Agent & Tool Execution Audit Trail
+              Investigation activity
             </h2>
             <div className="text-[11px] text-slate-600 font-mono">
               Immutable Trace: <span className="text-cyan-700 font-semibold">{safeAuditTrail.length} Logged Events</span>

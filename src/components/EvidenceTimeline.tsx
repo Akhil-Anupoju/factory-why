@@ -67,13 +67,13 @@ export const EvidenceTimeline: React.FC<EvidenceTimelineProps> = ({
   });
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
+    <div className="fw-panel bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col gap-3 w-full min-w-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-cyan-600 shrink-0" />
           <h2 className="text-xs font-bold font-mono tracking-wider text-slate-800 uppercase">
-            Auditable Evidence Stream ({filteredItems.length} Records)
+            Observed evidence ({filteredItems.length})
           </h2>
         </div>
 
@@ -99,9 +99,9 @@ export const EvidenceTimeline: React.FC<EvidenceTimelineProps> = ({
       <div className="bg-cyan-50/30 border border-cyan-500/20 rounded p-2 text-xs flex flex-wrap items-center justify-between gap-1.5 text-cyan-700 font-mono">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-cyan-600 shrink-0" />
-          <span>TRUST RULE: All items below are verified OBSERVED facts with immutable provenance paths.</span>
+          <span>Observed records are shown separately from AI explanations.</span>
         </div>
-        <span className="text-[10px] text-slate-600">Click ID to inspect raw audit trail</span>
+        <span className="text-[10px] text-slate-600">Open a record for its source details</span>
       </div>
 
       {/* Evidence Items List */}

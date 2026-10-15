@@ -23,7 +23,7 @@ class ADKRunner:
         self.services = services or {}
         self.model_config = ModelConfigLoader.load_from_env()
 
-    def run_workflow(self, orchestrator, state, force_live: bool = False):
+    def run_workflow(self, orchestrator, state, force_live: bool = False, force_targeted_retrieval: bool = False):
         """Prepare an optional live model runner (opt-in) and execute the
         provided orchestrator against the given InvestigationState.
 
@@ -390,4 +390,4 @@ class ADKRunner:
             orchestrator.services["model"] = self.model_config.model_name
 
         # Execute the orchestrator (existing behavior unchanged when not enabled)
-        return orchestrator.run(state)
+        return orchestrator.run(state, force_targeted_retrieval=force_targeted_retrieval)

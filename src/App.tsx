@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { TopBar } from './components/TopBar';
+import { ToastViewport, ToastMessage, ToastKind } from './components/ToastViewport';
 import { DemoScriptBar, DEMO_BEATS } from './components/DemoScriptBar';
 import { MachineContextPanel } from './components/MachineContextPanel';
 import { TelemetryPanel } from './components/TelemetryPanel';
@@ -24,10 +25,14 @@ import {
   calculateDeterministicSimulation, 
   DEFAULT_SIMULATION_PARAMS 
 } from './data/mockScenarios';
-import { fetchIncident, postApproval, postAction, fetchOutcome, postChallenge } from './api/incidentApi';
+import { fetchIncident, fetchIncidents, IncidentSummary, postApproval, postAction, fetchOutcome, postChallenge, postRequestEvidence } from './api/incidentApi';
 import { ApiError } from './api/apiClient';
 import { useAuth } from './auth/AuthContext';
+import { approvalDecisionLabel } from './approvalDecisionLabel';
+import { investigationNextStep } from './investigationNextStep';
+import { computeDecisionReadiness } from './decisionReadiness';
 import LoginPage from './pages/LoginPage';
+import { applyTheme, readStoredTheme, saveTheme, type Theme } from './theme';
 import createInvestigationStream from './api/streamApi';
 import { 
   InvestigationCase, 
@@ -52,7 +57,57 @@ import {
   Info
 } from 'lucide-react';
 
+function createSimulatedOutcome(currentCase: InvestigationCase): OutcomeRecord {
+  const leadingHypothesis = [...(currentCase.hypotheses || [])]
+    .sort((left, right) => left.likelihood_rank - right.likelihood_rank)[0];
+  const linkedEvidence = new Set(currentCase.recommendation?.evidence_references || []);
+  const evidenceIds = leadingHypothesis?.supporting_evidence_ids || [];
+  const grounding = evidenceIds.length
+    ? evidenceIds.filter(id => linkedEvidence.has(id)).length / evidenceIds.length
+    : 0;
+  const effectiveness = currentCase.simulation_results?.find(result => result.option === 'INSPECT')?.uncertainty_reduction
+    ?? currentCase.simulation_params?.intervention_effectiveness
+    ?? 0.5;
+  const recoveryFraction = Math.max(0, Math.min(0.9, effectiveness * (0.5 + 0.5 * (leadingHypothesis?.confidence || 0)) * grounding));
+  const vibration = currentCase.telemetry_summary?.vibration;
+  const temperature = currentCase.telemetry_summary?.temperature;
+  const preVibration = vibration?.current ?? 0;
+  const preTemperature = temperature?.current ?? 0;
+  const postVibration = Number((preVibration + ((vibration?.baseline ?? preVibration) - preVibration) * recoveryFraction).toFixed(2));
+  const postTemperature = Number((preTemperature + ((temperature?.baseline ?? preTemperature) - preTemperature) * recoveryFraction).toFixed(2));
+
+  return {
+    outcome_id: `SIM-OUT-${currentCase.incident_id}-${Date.now()}`,
+    incident_id: currentCase.incident_id,
+    is_simulated: true,
+    modeled_recovery_pct: Number((recoveryFraction * 100).toFixed(1)),
+    actual_cause: leadingHypothesis?.title || 'No ranked cause was available',
+    observed_result: `Prototype projection: ${Math.round(recoveryFraction * 100)}% modeled recovery toward recorded baselines. Physical outcome and prediction match remain unverified.`,
+    physical_findings: [
+      'Prototype projection only; no physical inspection or post-action sensor readings were collected.',
+      `Projected vibration: ${preVibration} → ${postVibration} mm/s RMS (${Math.round(recoveryFraction * 100)}% modeled recovery).`,
+      `Projected temperature: ${preTemperature} → ${postTemperature} °C (${Math.round(recoveryFraction * 100)}% modeled recovery).`,
+      `Projection uses ${Math.round(effectiveness * 100)}% inspection effectiveness, ${Math.round((leadingHypothesis?.confidence || 0) * 100)}% hypothesis confidence, and ${Math.round(grounding * 100)}% evidence grounding.`,
+    ],
+    pre_vibration: preVibration,
+    post_vibration: postVibration,
+    pre_temperature: preTemperature,
+    post_temperature: postTemperature,
+    prediction_match: null,
+    top_k_recall: null,
+    time_to_resolution_minutes: Math.max(currentCase.recommendation?.estimated_duration_minutes || 0, 1),
+    accuracy_score_pct: null,
+  };
+}
+
 export default function App() {
+  const [theme, setTheme] = useState<Theme>(readStoredTheme);
+  useEffect(() => {
+    applyTheme(theme);
+    saveTheme(theme);
+  }, [theme]);
+  const toggleTheme = () => setTheme((current) => current === 'dark' ? 'light' : 'dark');
+
   // Read frontend runtime mode from VITE_RUNTIME_MODE. If set to one of
   // CLOUD/LIVE/PRODUCTION then demo/mock fallbacks are disallowed.
   // Default (unset or LOCAL/DEMO) preserves existing developer-friendly behavior.
@@ -68,8 +123,11 @@ export default function App() {
   };
 
   // Active Scenario & Case State
-  const [activeScenarioId, setActiveScenarioId] = useState<string>('CNC-04');
+  const [activeScenarioId, setActiveScenarioId] = useState<string>('INC-2026-0827');
   const [currentCase, setCurrentCase] = useState<InvestigationCase>(PRIMARY_SCENARIO_CNC04);
+  const [availableIncidents, setAvailableIncidents] = useState<IncidentSummary[]>([]);
+  const [incidentsLoading, setIncidentsLoading] = useState<boolean>(false);
+  const incidentLoadSequence = useRef(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [usingMock, setUsingMock] = useState<boolean>(false);
@@ -82,6 +140,20 @@ export default function App() {
   // rather than let the UI appear frozen/static.
   const [isLiveAnalyzing, setIsLiveAnalyzing] = useState<boolean>(false);
   const auth = useAuth();
+  const useClientDemoActions = usingMock || (!isLiveRuntime() && auth.isLocalDemoUser);
+  const nextInvestigationStep = investigationNextStep(currentCase);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id));
+  }, []);
+  const showToast = (message: string, kind: ToastKind = 'info', duration = 1800) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setToasts(prev => [...prev, { id, message, kind, duration }]);
+    return id;
+  };
+  const updateToast = (id: string, message: string, kind: ToastKind, duration = 1800) => {
+    setToasts(prev => prev.map(toast => toast.id === id ? { ...toast, message, kind, duration } : toast));
+  };
 
   // TopBar now consumes Auth context directly — no DOM wiring required here.
 
@@ -92,20 +164,15 @@ export default function App() {
   const [selectedSimulationOption, setSelectedSimulationOption] = useState<string>('INSPECT');
   const [isEvaluationSuiteOpen, setIsEvaluationSuiteOpen] = useState<boolean>(false);
 
-  // Progressive-disclosure stage expansion state. Investigation stages
-  // (asset/signals/why/critic/evidence/simulate) are available as soon as
-  // live data loads (the backend delivers them in one payload, not a
-  // staged reveal), so they default to expanded and are individually
-  // collapsible for review. The two human-decision stages (approve,
-  // outcome) are auto-managed: whichever one requires the engineer's
-  // attention next is kept expanded and visually emphasized as CURRENT.
+  // Progressive disclosure: keep asset signals, leading explanations, and
+  // the current human decision available on first load; keep secondary and
+  // completed detail one click away to avoid a long, visually noisy page.
   const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({
     asset: true,
-    signals: true,
     why: true,
     critic: true,
-    evidence: true,
-    simulate: true,
+    evidence: false,
+    simulate: false,
     approve: true,
     outcome: false,
     audit: false,
@@ -113,23 +180,24 @@ export default function App() {
   const toggleStage = (id: string) => setExpandedStages(prev => ({ ...prev, [id]: !prev[id] }));
 
   // 3-Minute Demo Script Guide State
-  const [isDemoGuideOpen, setIsDemoGuideOpen] = useState<boolean>(true);
+  const [isDemoGuideOpen, setIsDemoGuideOpen] = useState<boolean>(false);
   const [demoStep, setDemoStep] = useState<number>(1);
   const [isDemoPlaying, setIsDemoPlaying] = useState<boolean>(false);
 
   // Handler: Select Scenario
-  const handleSelectScenario = (id: string) => {
-    setActiveScenarioId(id);
+  const handleSelectScenario = (selectedId: string) => {
+    const incidentId = selectedId === 'CNC-04' ? 'INC-2026-0827' : selectedId === 'CNC-04-LUBE' ? 'INC-2026-0902' : selectedId;
+    setActiveScenarioId(incidentId);
     // Reset error/loading first
     setError(null);
-    if (id === 'CNC-04') {
-      // try API first. Only allow demo fallback when runtime is explicitly non-live.
-      const fallback = !isLiveRuntime();
-      loadIncident('INC-2026-0827', fallback);
-    } else {
-      setCurrentCase(JSON.parse(JSON.stringify(SCENARIO_LUBRICATION)));
-    }
+    const fallback = !isLiveRuntime() && [PRIMARY_SCENARIO_CNC04.incident_id, SCENARIO_LUBRICATION.incident_id].includes(incidentId);
+    void loadIncident(incidentId, fallback);
     setSelectedComponentId(null);
+    setSelectedEvidence(null);
+    setSelectedHypothesisId('HYP-01');
+    setSelectedSimulationOption('INSPECT');
+    setExpandedStages({ asset: true, why: true, critic: false, evidence: false, simulate: false, approve: true, outcome: false, audit: false });
+    setStreamState('idle');
     setDemoStep(1);
   };
 
@@ -138,15 +206,42 @@ export default function App() {
   // never fall back to fixture data. The `fallbackToMock` parameter is
   // allowed for explicit DEMO flows and tests only.
   const loadIncident = async (incidentId: string, fallbackToMock = false) => {
+    const toastId = showToast(`Loading incident ${incidentId}…`, 'loading', 0);
+    const requestSequence = ++incidentLoadSequence.current;
     setLoading(true);
     setError(null);
+    // A local account is a demo identity, not a Firebase identity. Keep its
+    // entire investigation on sample data so server evidence cannot be mixed
+    // with browser-only approvals or actions.
+    if (auth.isLocalDemoUser && !isLiveRuntime()) {
+      const demoCase = incidentId === SCENARIO_LUBRICATION.incident_id
+        ? SCENARIO_LUBRICATION
+        : incidentId === PRIMARY_SCENARIO_CNC04.incident_id
+          ? PRIMARY_SCENARIO_CNC04
+          : null;
+      if (!demoCase) {
+        setError('Sign in with Firebase to load this live Firestore incident.');
+        updateToast(toastId, 'Sign in with Firebase to load this incident.', 'error');
+        setLoading(false);
+        return;
+      }
+      setCurrentCase(JSON.parse(JSON.stringify(demoCase)));
+      setUsingMock(true);
+      setStreamState('idle');
+      setLoading(false);
+      updateToast(toastId, `Demo incident ${incidentId} loaded.`, 'success');
+      return;
+    }
     // Ensure we start each load assuming live data (no demo)
     setUsingMock(false);
     try {
       const ic = await fetchIncident(incidentId);
+      if (requestSequence !== incidentLoadSequence.current) return;
+      if (ic.incident_id !== incidentId) throw new Error(`Backend returned ${ic.incident_id} while ${incidentId} was selected.`);
       // Successful live API load: explicitly mark runtime as live (no mock)
       setCurrentCase(ic);
       setUsingMock(false);
+      updateToast(toastId, `Incident ${incidentId} loaded.`, 'success');
     } catch (err: any) {
       // If this is an authentication failure, attempt a single forced
       // token refresh before marking the app as errored. This helps when
@@ -155,14 +250,17 @@ export default function App() {
       let retried = false;
       if (err instanceof ApiError && err.status === 401) {
         try {
-          const refreshed = await auth.getIdToken?.(true);
+          const refreshed = await auth.getIdToken?.();
           retried = true;
           if (refreshed) {
             // try fetching once more with refreshed token
             const ic2 = await fetchIncident(incidentId);
+            if (requestSequence !== incidentLoadSequence.current) return;
+            if (ic2.incident_id !== incidentId) throw new Error(`Backend returned ${ic2.incident_id} while ${incidentId} was selected.`);
             setCurrentCase(ic2);
             setUsingMock(false);
             setLoading(false);
+            updateToast(toastId, `Incident ${incidentId} loaded.`, 'success');
             return;
           }
         } catch (e) {
@@ -173,6 +271,7 @@ export default function App() {
       // as recoverable by falling back to demo data. Only network/back-end
       // availability errors should allow the explicit demo fallback.
       const msg = err?.message || String(err);
+      if (requestSequence !== incidentLoadSequence.current) return;
       // If fallback is explicitly requested (demo/test mode) and this is
       // not an auth error, allow demo data. Otherwise surface the runtime
       // error so operators can see live API failures. In particular, when
@@ -186,23 +285,75 @@ export default function App() {
       // the frontend is NOT configured as a live runtime.
       const live = isLiveRuntime();
       if (!live && fallbackToMock && !(err instanceof ApiError && (err.status === 401 || err.status === 403))) {
-        // demo/test explicit fallback for non-live runtimes
-        setCurrentCase(JSON.parse(JSON.stringify(PRIMARY_SCENARIO_CNC04)));
-        setUsingMock(true);
-        // clear the visible error so the UI shows the demo banner instead
-        setError(null);
-        // if using mock data, ensure stream is stopped
-        setStreamState('idle');
+        const demoCase = incidentId === PRIMARY_SCENARIO_CNC04.incident_id
+          ? PRIMARY_SCENARIO_CNC04
+          : incidentId === SCENARIO_LUBRICATION.incident_id
+            ? SCENARIO_LUBRICATION
+            : null;
+        if (demoCase) {
+          setCurrentCase(JSON.parse(JSON.stringify(demoCase)));
+          setUsingMock(true);
+          setError(null);
+          setStreamState('idle');
+          updateToast(toastId, `Live data unavailable; loaded demo incident ${incidentId}.`, 'info');
+        } else {
+          setError(msg);
+          updateToast(toastId, `Could not load incident ${incidentId}: ${msg}`, 'error');
+        }
       } else {
         // In live mode or when fallback not allowed: surface error
         // If we already retried a forced token refresh above, preserve the
         // original error message so operators can inspect it.
         setError(msg);
+        updateToast(toastId, `Could not load incident ${incidentId}: ${msg}`, 'error');
       }
-    } finally {
-      setLoading(false);
-    }
+      } finally {
+        if (requestSequence === incidentLoadSequence.current) setLoading(false);
+      }
   };
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) return;
+    let cancelled = false;
+    setIncidentsLoading(true);
+    fetchIncidents()
+      .then(incidents => {
+        if (!cancelled) {
+          setAvailableIncidents(incidents.length ? incidents : [
+            { incident_id: PRIMARY_SCENARIO_CNC04.incident_id, title: 'Spindle Bearing Misalignment', asset_id: PRIMARY_SCENARIO_CNC04.asset.asset_id, severity: 'HIGH', status: 'PENDING' },
+            { incident_id: SCENARIO_LUBRICATION.incident_id, title: 'Lubrication Pressure Loss', asset_id: SCENARIO_LUBRICATION.asset.asset_id, severity: 'HIGH', status: 'PENDING' },
+          ]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAvailableIncidents([
+            { incident_id: PRIMARY_SCENARIO_CNC04.incident_id, title: 'Spindle Bearing Misalignment', asset_id: PRIMARY_SCENARIO_CNC04.asset.asset_id, severity: 'HIGH', status: 'PENDING' },
+            { incident_id: SCENARIO_LUBRICATION.incident_id, title: 'Lubrication Pressure Loss', asset_id: SCENARIO_LUBRICATION.asset.asset_id, severity: 'HIGH', status: 'PENDING' },
+          ]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIncidentsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [auth.isAuthenticated]);
+
+  useEffect(() => {
+    if (availableIncidents.some(incident => incident.incident_id === activeScenarioId)) return;
+    if (availableIncidents.some(incident => incident.incident_id === currentCase.incident_id)) {
+      setActiveScenarioId(currentCase.incident_id);
+    }
+  }, [availableIncidents, activeScenarioId, currentCase.incident_id]);
+
+  // Remove completed or rejected cases from the picker immediately, without
+  // waiting for a reload of the incident catalog. Keep the active case open
+  // in the workspace so the engineer can still review its outcome/audit.
+  useEffect(() => {
+    const decision = currentCase.approval?.decision;
+    if (!currentCase.outcome && decision !== 'REJECTED') return;
+    setAvailableIncidents(prev => prev.filter(item => item.incident_id !== currentCase.incident_id));
+  }, [currentCase.incident_id, currentCase.approval?.decision, currentCase.outcome]);
 
   // SSE: start/stop investigation stream when using live data
   useEffect(() => {
@@ -262,7 +413,7 @@ export default function App() {
 
           (async () => {
             try {
-              const refreshed = await auth.getIdToken?.(true);
+              const refreshed = await auth.getIdToken?.();
               if (refreshed) {
                 // Token was refreshable — the user's session is fine.
                 // Restart the stream explicitly (the dependency array
@@ -345,6 +496,13 @@ export default function App() {
     requestAnimationFrame(() => scrollToSection(anchorId));
   };
 
+  // Deterministic decision readiness check: fixed arithmetic/lookup over
+  // data already gathered (confidence, Critic coverage, evidence grounding,
+  // open gaps, modeled uncertainty). Recomputed whenever the underlying
+  // case data changes. This never calls the network or an LLM — it is
+  // intentionally distinct from the live Critic AI challenge.
+  const decisionReadiness = useMemo(() => computeDecisionReadiness(currentCase), [currentCase]);
+
   // Derive stage status (completed/current/pending/locked) from real
   // runtime state only — no fabricated progress.
   const stageStatus = (id: string): StageStatus => {
@@ -352,7 +510,6 @@ export default function App() {
     const approvalDecision = currentCase.approval?.decision;
     switch (id) {
       case 'asset':
-      case 'signals':
         return hasData ? 'completed' : 'pending';
       case 'why':
         return (currentCase.hypotheses?.length || 0) > 0 ? 'completed' : 'pending';
@@ -377,16 +534,6 @@ export default function App() {
     }
   };
 
-  const topChangedSummary = (): string => {
-    const entries = Object.entries(currentCase.telemetry_summary || {});
-    const sorted = entries
-      .filter(([, v]: any) => Math.abs(v.delta_pct) > 0)
-      .sort((a: any, b: any) => Math.abs(b[1].delta_pct) - Math.abs(a[1].delta_pct))
-      .slice(0, 3);
-    const labels: Record<string, string> = { vibration: 'Vibration', temperature: 'Temp', motor_current: 'Current', rpm: 'RPM', pressure: 'Pressure' };
-    return sorted.map(([k, v]: any) => `${labels[k] || k} ${v.delta_pct >= 0 ? '+' : ''}${v.delta_pct}%`).join(' · ') || 'No deviation';
-  };
-
   // Handler: Reset Case
   const handleResetCase = () => {
     handleSelectScenario(activeScenarioId);
@@ -404,16 +551,26 @@ export default function App() {
 
   // Handler: Human Approval Decision
   const handleApprovalDecision = async (decision: ApprovalDecision, comment: string) => {
+    setError(null);
     const timestamp = new Date().toISOString();
 
-    // Local demo behavior preserved when usingMock === true
-    if (usingMock) {
+    if (decision === 'CHALLENGE' && useClientDemoActions) {
+      // Sample Critic findings are already present. Never imply that a local
+      // demo account triggered a live ADK challenge or an approval decision.
+      focusStage('critic', 'critic');
+      return;
+    }
+
+    // Demo investigations contain sample evidence and browser-only decisions.
+    // No local decision is sent to an approval or action endpoint.
+    if (useClientDemoActions) {
       if (decision === 'APPROVED') {
         // preserve existing demo flow (client-side action creation)
+        const demoApprovalId = `DEMO-APPROVED-${Date.now()}`;
         const generatedAction: ActionRecord = {
-          action_id: `ACT-${Date.now()}`,
+          action_id: `DEMO-ACT-${Date.now()}`,
           incident_id: currentCase.incident_id,
-          approval_id: `APP-APPROVED-${Date.now()}`,
+          approval_id: demoApprovalId,
           task_type: 'NON_DESTRUCTIVE_LASER_RUNOUT_INSPECTION',
           task_number: 'TASK-2026-0922-01',
           assigned_technician: 'D. Miller (Shift B Lead Tech)',
@@ -438,10 +595,13 @@ export default function App() {
           ...prev,
           approval: {
             ...prev.approval,
+            approval_id: demoApprovalId,
             decision: 'APPROVED',
             comment,
             timestamp,
-            signature_hash: 'SHA256:8f4c2e91a0b3...'
+            engineer_name: auth.user?.displayName || 'Local demo operator',
+            engineer_role: 'Demo operator',
+            signature_hash: ''
           },
           action: generatedAction,
           // preserve demo audit additions
@@ -461,10 +621,15 @@ export default function App() {
         }));
       }
 
+      showToast(
+        decision === 'APPROVED' ? 'Action approved.' : decision === 'REJECTED' ? 'Recommendation rejected.' : 'Decision saved.',
+        'success',
+      );
       return;
     }
 
     // Live path: call server endpoints. Do not fabricate actor identity.
+    let decisionToastId: string | null = null;
     try {
       // Map client decision aliases to backend canonical values when needed.
       let backendDecision = decision;
@@ -475,6 +640,22 @@ export default function App() {
       // we store on the case for UI consumption.
       if (backendDecision === 'CHALLENGE' || decision === 'CHALLENGE') {
         setIsLiveAnalyzing(true);
+        const toastId = showToast('AI challenge started: checking the leading explanation against evidence…', 'loading', 0);
+        const challengeStartedAt = Date.now();
+        let challengeProgressMessage = 'Running AI challenge analysis…';
+        const progressTimer = window.setInterval(() => {
+          const elapsedSeconds = Math.floor((Date.now() - challengeStartedAt) / 1000);
+          const progressMessages = [
+            'AI is checking the leading explanation against the incident evidence.',
+            'AI is looking for contradictions and missing evidence.',
+            'AI is preparing the strongest test that could disprove the explanation.',
+          ];
+          const message = progressMessages[Math.floor(elapsedSeconds / 10) % progressMessages.length];
+          if (message !== challengeProgressMessage) {
+            challengeProgressMessage = message;
+            updateToast(toastId, message, 'loading', 0);
+          }
+        }, 10000);
         try {
           const crit = await postChallenge(currentCase.incident_id, { recommendation: currentCase.recommendation });
           setCurrentCase(prev => ({ ...prev, critic_finding: crit }));
@@ -487,13 +668,82 @@ export default function App() {
           } catch (e) {
             // non-fatal: critic_finding is already applied above
           }
+          window.clearInterval(progressTimer);
+          updateToast(toastId, 'AI challenge analysis complete.', 'success');
+        } catch (err) {
+          window.clearInterval(progressTimer);
+          dismissToast(toastId);
+          throw err;
         } finally {
+          window.clearInterval(progressTimer);
           setIsLiveAnalyzing(false);
         }
         return;
       }
 
+      // Special-case MORE_EVIDENCE_REQUESTED: this is fully self-contained
+      // (unlike APPROVED/REJECTED below) because it does real agent work
+      // before recording the decision. It must NOT fall through to the
+      // generic decision-recording code below — doing so previously caused
+      // a race: the generic path's own fetchIncident()+overwrite could
+      // resolve AFTER a subsequent "Challenge the hypothesis" call and silently
+      // revert its results. Keep the busy flag set for the ENTIRE
+      // operation (retrieval + decision recording) so the Critic button
+      // stays disabled until this is fully done, and return immediately
+      // so there is only ever one state-overwriting fetch per action.
+      if (backendDecision === 'MORE_EVIDENCE_REQUESTED') {
+        setIsLiveAnalyzing(true);
+        const toastId = showToast('Evidence Agent is selecting a targeted check for the leading explanation…', 'loading', 0);
+        decisionToastId = toastId;
+        try {
+          const retrieval = await postRequestEvidence(currentCase.incident_id, {});
+          setCurrentCase(prev => ({ ...prev, hypotheses: retrieval.hypotheses, critic_finding: retrieval.critic_finding }));
+
+          updateToast(
+            toastId,
+            retrieval.evidence_added > 0
+              ? `Retrieved ${retrieval.evidence_added} new evidence record${retrieval.evidence_added === 1 ? '' : 's'}; recording your request…`
+              : 'Targeted retrieval completed; recording your request…',
+            'loading',
+            0,
+          );
+
+          const serverApproval = await postApproval(currentCase.incident_id, { recommendation: currentCase.recommendation, decision: backendDecision, comment });
+          try {
+            const refreshed = await fetchIncident(currentCase.incident_id);
+            setCurrentCase(prev => ({ ...prev, ...(refreshed as any), hypotheses: retrieval.hypotheses, critic_finding: retrieval.critic_finding, approval: serverApproval }));
+            setUsingMock(false);
+          } catch (e) {
+            // If the post-retrieval refresh fails, at least apply the
+            // retrieval results and the server-confirmed approval so the
+            // UI doesn't silently miss either.
+            setCurrentCase(prev => ({ ...prev, hypotheses: retrieval.hypotheses, critic_finding: retrieval.critic_finding, approval: serverApproval }));
+          }
+
+          updateToast(
+            toastId,
+            retrieval.evidence_added > 0
+              ? `Evidence request recorded. Added ${retrieval.evidence_added} new record${retrieval.evidence_added === 1 ? '' : 's'}; review the updated evidence and readiness.`
+              : 'Evidence request recorded. No new records were found; review the updated evidence and readiness.',
+            'success',
+            7000,
+          );
+        } catch (err) {
+          updateToast(toastId, `Evidence request failed: ${err instanceof Error ? err.message : 'Please retry.'}`, 'error');
+          setIsLiveAnalyzing(false);
+          throw err;
+        }
+        setIsLiveAnalyzing(false);
+        return;
+      }
+
       // send recommendation from currentCase as-is
+      decisionToastId = showToast(
+        backendDecision === 'APPROVED' ? 'Recording approval and updating the incident…' :
+          backendDecision === 'REJECTED' ? 'Recording rejection…' : 'Saving your decision…',
+        'loading',
+        0,
+      );
       const serverApproval = await postApproval(currentCase.incident_id, { recommendation: currentCase.recommendation, decision: backendDecision, comment });
       // on success, try to refresh the full incident from the API so we pick up
       // any server-side audit or state changes; fall back to replacing only
@@ -518,27 +768,34 @@ export default function App() {
         // the UI reflects the authoritative state immediately.
         setCurrentCase(prev => ({ ...prev, approval: serverApproval }));
       }
+      updateToast(decisionToastId, backendDecision === 'APPROVED' ? 'Approval recorded.' : backendDecision === 'REJECTED' ? 'Recommendation rejected.' : 'Decision recorded.', 'success');
     } catch (err: any) {
+      const failDecisionToast = (message: string) => {
+        if (decisionToastId) updateToast(decisionToastId, message, 'error');
+        else showToast(message, 'error');
+      };
       // Map ApiError to user-facing states
       if (err instanceof ApiError) {
         if (err.status === 401) {
-          setError('Your session has expired. Please sign in again.');
-          // eslint-disable-next-line no-console
-          console.error(`[AUTH SIGNOUT] Triggered by approval/challenge flow — request to ${err.url || '(unknown url)'} returned 401 even after one forced token refresh+retry. Signing out.`);
-          // sign the user out to force re-auth
-          auth.signOut();
+          setError('The backend could not verify your Firebase sign-in. Please retry or sign in again.');
+          failDecisionToast('Sign-in could not be verified. Please sign in and retry.');
           return;
         }
         if (err.status === 403) {
           setError('You are not authorized to approve or execute this action.');
+          failDecisionToast('You are not authorized to make this decision.');
           return;
         }
         if (err.status === 422) {
           setError(err.message || 'Validation failed for the approval request.');
+          failDecisionToast(err.message || 'The decision did not pass validation.');
           return;
         }
         if (err.status === 502) {
           setError('Live AI analysis is temporarily unavailable (Gemini/Vertex AI call failed). No fabricated result was shown.');
+          failDecisionToast(decision === 'REQUEST_MORE_EVIDENCE' || decision === 'MORE_EVIDENCE_REQUESTED'
+            ? 'Targeted evidence retrieval is temporarily unavailable. No fabricated evidence was added.'
+            : 'Hypothesis challenge is temporarily unavailable. No result was fabricated.');
           return;
         }
         if (err.status === 409) {
@@ -550,6 +807,8 @@ export default function App() {
           try {
             const refreshed = await fetchIncident(currentCase.incident_id);
             setCurrentCase(prev => ({ ...prev, ...(refreshed as any) }));
+            showToast('This decision was already recorded. Case refreshed.', 'info');
+            if (decisionToastId) dismissToast(decisionToastId);
           } catch (e) {
             // ignore; next load will pick it up
           }
@@ -559,23 +818,29 @@ export default function App() {
 
       // generic network / server error
       setError('Factory WHY could not complete this request.');
+      failDecisionToast('Could not complete the decision. Please retry.');
     }
   };
 
   // Handler: Execute Physical Inspection to reveal Ground Truth
   const handleExecuteAction = async () => {
+    setError(null);
     const timestamp = new Date().toISOString();
 
-    // Guard: only allow execution in live mode when approval is server-confirmed
-    if (!usingMock) {
+    // Server execution requires a server-confirmed approval and Firebase auth.
+    if (!useClientDemoActions) {
       const approval = currentCase.approval;
       if (!approval || approval.decision !== 'APPROVED' || approval.incident_id !== currentCase.incident_id || approval.recommendation_id !== currentCase.recommendation.recommendation_id) {
-        setError('Action locked: approval not confirmed for this incident and recommendation.');
+        const message = 'Action locked: approval not confirmed for this incident and recommendation.';
+        setError(message);
+        showToast(message, 'error');
         return;
       }
 
+      let actionToastId: string | null = null;
       try {
         // Call server /actions endpoint
+        actionToastId = showToast('Recording the approved inspection and calculating its modeled outcome…', 'loading', 0);
         const resp = await postAction(currentCase.incident_id, { recommendation: currentCase.recommendation, approval_id: approval.approval_id });
         // Update action and outcome from server-confirmed response
         // Update action and outcome from server-confirmed response. If the server
@@ -597,14 +862,14 @@ export default function App() {
           outcome: finalOutcome,
           // do not fabricate audit events; the server should return authoritative audit which can be fetched separately
         }));
+        updateToast(actionToastId, 'Inspection complete. Outcome loaded.', 'success');
         return;
       } catch (err: any) {
+        if (actionToastId) updateToast(actionToastId, 'Inspection could not be completed.', 'error');
+        else showToast('Inspection could not be completed.', 'error');
         if (err instanceof ApiError) {
           if (err.status === 401) {
-            setError('Your session has expired. Please sign in again.');
-            // eslint-disable-next-line no-console
-            console.error(`[AUTH SIGNOUT] Triggered by action-execution flow — request to ${err.url || '(unknown url)'} returned 401 even after one forced token refresh+retry. Signing out.`);
-            auth.signOut();
+            setError('The backend could not verify your Firebase sign-in. Please retry or sign in again.');
             return;
           }
           if (err.status === 403) {
@@ -622,7 +887,9 @@ export default function App() {
     }
 
     // Demo/local behavior preserved when usingMock === true
-    const outcome = activeScenarioId === 'CNC-04' ? GROUND_TRUTH_OUTCOME_CNC04 : null;
+    const outcome = currentCase.incident_id === GROUND_TRUTH_OUTCOME_CNC04?.incident_id
+      ? GROUND_TRUTH_OUTCOME_CNC04
+      : createSimulatedOutcome(currentCase);
 
     if (outcome) {
       // Defensive: ensure audit_trail exists before appending
@@ -652,6 +919,7 @@ export default function App() {
           audit_trail: [...safeAudit, outcomeAuditEvent]
         };
       });
+      showToast('Simulated inspection complete. Review the modeled result.', 'success');
     }
   };
 
@@ -669,15 +937,18 @@ export default function App() {
     setDemoStep(stepNumber);
     const beat = DEMO_BEATS[stepNumber - 1];
     if (beat && beat.targetAnchor) {
-      const el = document.getElementById(beat.targetAnchor);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+      const stageForAnchor: Record<string, string> = {
+        'machine-context': 'asset', telemetry: 'asset', evidence: 'evidence',
+        hypotheses: 'why', critic: 'critic', simulation: 'simulate', approval: 'approve',
+      };
+      const stage = stageForAnchor[beat.targetAnchor];
+      if (stage) setExpandedStages(prev => ({ ...prev, [stage]: true }));
+      requestAnimationFrame(() => scrollToSection(beat.targetAnchor));
     }
 
     // Auto-progress actions on certain beats
     const safeApproval = currentCase?.approval || ({} as any);
-    if (stepNumber === 8 && safeApproval.decision !== 'APPROVED') {
+    if (useClientDemoActions && stepNumber === 8 && safeApproval.decision !== 'APPROVED') {
       handleApprovalDecision('APPROVED', 'Demo Walkthrough: Approved for immediate laser runout diagnostic inspection.');
     }
   };
@@ -689,10 +960,8 @@ export default function App() {
     }
   };
 
-  // Auto-play timer for demo script
+  // Load the initial selected incident once after authentication is ready.
   useEffect(() => {
-    // On first mount, attempt to load primary scenario from API with fallback to mock.
-    // Defer loading until auth resolved. If unauthenticated, App will render LoginPage.
     if (!auth.loading && auth.isAuthenticated) {
       // Determine fallback behavior explicitly: only allow demo fallback when
       // the frontend runtime mode is explicitly non-live. If VITE_RUNTIME_MODE
@@ -703,10 +972,13 @@ export default function App() {
         // eslint-disable-next-line no-console
         console.warn('VITE_RUNTIME_MODE not set. Demo fallback disabled.');
       }
-      const fallback = mode ? !isLiveRuntime() : false;
+      const fallback = Boolean(mode) && !isLiveRuntime();
       loadIncident('INC-2026-0827', fallback);
     }
+  }, [auth.loading, auth.isAuthenticated]);
 
+  // Auto-play timer for demo script.
+  useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isDemoPlaying) {
       timer = setTimeout(() => {
@@ -718,7 +990,7 @@ export default function App() {
       }, 5000);
     }
     return () => clearTimeout(timer);
-  }, [isDemoPlaying, demoStep, auth.loading, auth.isAuthenticated]);
+  }, [isDemoPlaying, demoStep]);
 
   // Gate: auth-loading -> loading banner, unauthenticated -> LoginPage, authenticated -> app
   if (auth.loading) {
@@ -732,22 +1004,32 @@ export default function App() {
   }
 
   if (!auth.isAuthenticated) {
-    return <LoginPage />;
+    return <LoginPage theme={theme} onToggleTheme={toggleTheme} />;
+  }
+
+  if (auth.isLocalDemoUser && !isLiveRuntime() && !usingMock) {
+    return <div className="fw-app min-h-screen flex items-center justify-center text-slate-700" role="status">Preparing the demo investigation…</div>;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-800 overflow-x-hidden">
+    <div className="fw-app min-h-screen text-slate-900 flex flex-col font-sans selection:bg-teal-500/25 selection:text-teal-950 overflow-x-hidden">
+      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
       
       {/* 1. Top Bar */}
       <TopBar
         currentCase={currentCase}
         activeScenarioId={activeScenarioId}
+        demoMode={useClientDemoActions}
+        incidents={availableIncidents}
+        incidentsLoading={incidentsLoading}
         onSelectScenario={handleSelectScenario}
         onResetCase={handleResetCase}
         onOpenEvaluationSuite={() => setIsEvaluationSuiteOpen(true)}
         demoProgress={demoStep}
         onOpenDemoGuide={() => setIsDemoGuideOpen(!isDemoGuideOpen)}
         isDemoGuideOpen={isDemoGuideOpen}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* 2. Three-Minute Demo Script Bar */}
@@ -762,15 +1044,14 @@ export default function App() {
       )}
 
       {/* Loading / Error / Mock Fallback Banner - non-modal, accessible */}
-      <div aria-live="polite" className="max-w-[1720px] mx-auto px-3 sm:px-5 py-2">
+      <div aria-live="polite" className="max-w-[1480px] w-full mx-auto px-4 sm:px-7 py-2">
         {isLiveAnalyzing && (
           <div className="flex items-center gap-3 bg-cyan-50/70 border border-cyan-300/60 rounded p-3 text-cyan-950 mb-2" role="status">
             <Loader2 className="animate-spin w-5 h-5 text-cyan-700 shrink-0" aria-hidden />
             <div>
-              <div className="font-semibold">Gemini is running a live Critic analysis</div>
+              <div className="font-semibold">Gemini is checking the leading theory</div>
               <div className="text-xs text-cyan-800">
-                Google ADK is executing Evidence → WHY → Critic → (targeted retrieval) → revised WHY against Vertex AI.
-                This is a real model call and typically takes 30–120 seconds — this is not a frozen screen.
+                It is reviewing evidence and looking for contradictions. This live check can take 30–120 seconds.
               </div>
             </div>
           </div>
@@ -781,7 +1062,7 @@ export default function App() {
             <Loader2 className="animate-spin w-5 h-5 text-cyan-600" aria-hidden />
             <div>
               <div className="font-semibold">Loading live incident</div>
-              <div className="text-xs text-slate-600">Fetching latest incident data from backend…</div>
+              <div className="text-xs text-slate-600">Fetching the latest incident data…</div>
             </div>
           </div>
         )}
@@ -790,89 +1071,73 @@ export default function App() {
           <div className="flex items-start gap-3 bg-amber-100/80 border border-amber-300 rounded p-3 text-amber-950" role="alert">
             <AlertTriangle className="w-5 h-5 text-amber-800 mt-0.5" aria-hidden />
             <div className="flex-1 min-w-0">
-              <div className="font-semibold">Data unavailable</div>
+              <div className="font-semibold">Request needs attention</div>
               {usingMock ? (
                 <div className="text-sm text-amber-900">Could not load the live incident data from the backend. The application is using a local demo scenario instead.</div>
               ) : (
                 <div className="text-sm text-amber-900">
-                  Unable to load live investigation data ({error}). No demo fallback is used in this runtime mode.
+                  {error}
                 </div>
               )}
-              <div className="text-xs text-amber-900 mt-1">If you expected live data, check network connectivity or backend health.</div>
             </div>
             {!usingMock && (
               <button
                 onClick={() => loadIncident(currentCase.incident_id, false)}
                 className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded bg-amber-300 hover:bg-amber-400 text-slate-900 border border-amber-500/60"
               >
-                Retry
+                Reload incident
               </button>
             )}
           </div>
         )}
 
-        {!loading && usingMock && !error && (
-          <div className="flex items-center gap-3 bg-slate-200/60 border border-slate-300 rounded p-2 text-slate-800" role="status">
-            <Info className="w-5 h-5 text-slate-700" aria-hidden />
+        {!loading && useClientDemoActions && !error && (
+          <div className="fw-demo-notice flex items-start gap-3 rounded p-3" role="status">
+            <Info className="w-5 h-5 shrink-0" aria-hidden />
             <div className="text-sm">
-              <span className="font-medium">Demo data</span>
-              <span className="text-slate-600"> — Using the local scenario for offline/demo purposes.</span>
+              <strong className="block">Demo-only investigation</strong>
+              <span>All evidence shown here is sample data. Decisions and actions stay in this browser; local approval is never server authorization or a real dispatch. Sign in with Google or GitHub and load the live incident for server-backed decisions.</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Investigation Progress Rail — reflects real stage status (completed/current/pending/locked) */}
-      <nav
-        aria-label="Investigation Stages Navigation"
-        className="bg-white/95 backdrop-blur border-b border-slate-200 px-3 sm:px-5 py-2 w-full min-w-0 sticky top-[88px] sm:top-[96px] z-20 shadow-sm"
-      >
-        <div className="max-w-[1720px] mx-auto flex flex-wrap items-center gap-1 sm:gap-1.5 text-[11px] font-mono min-w-0">
-          {([
-            { id: 'asset', anchor: 'machine-context', label: 'Asset' },
-            { id: 'signals', anchor: 'telemetry', label: 'Signals' },
-            { id: 'why', anchor: 'hypotheses', label: 'WHY' },
-            { id: 'critic', anchor: 'critic', label: 'Critic' },
-            { id: 'evidence', anchor: 'evidence', label: 'Evidence' },
-            { id: 'simulate', anchor: 'simulation', label: 'Simulate' },
-            { id: 'approve', anchor: 'approval', label: 'Approve' },
-            { id: 'outcome', anchor: 'outcome', label: 'Outcome' },
-            { id: 'audit', anchor: 'audit', label: 'Audit' },
-          ] as const).map((stage, i) => {
-            const status = stageStatus(stage.id);
-            const dotClass =
-              status === 'completed' ? 'bg-emerald-500' :
-              status === 'current' ? 'bg-cyan-500 animate-pulse' :
-              status === 'locked' ? 'bg-slate-300' : 'bg-slate-400';
-            const textClass =
-              status === 'current' ? 'text-cyan-700 font-bold' :
-              status === 'locked' ? 'text-slate-400' : 'text-slate-600';
-            return (
-              <React.Fragment key={stage.id}>
-                {i > 0 && <span className="text-slate-200 hidden sm:inline">/</span>}
-                <button
-                  onClick={() => focusStage(stage.id, stage.anchor)}
-                  disabled={status === 'locked'}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors whitespace-nowrap ${textClass} ${status === 'locked' ? 'cursor-not-allowed' : 'hover:text-slate-900 hover:bg-white'} ${status === 'current' ? 'bg-cyan-50' : ''}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
-                  <span>{i + 1}. {stage.label}</span>
-                </button>
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </nav>
-
       {/* Main Investigation Workspace Area */}
-      <main className="flex-1 max-w-[1720px] w-full mx-auto px-3 sm:px-5 py-5 sm:py-7 space-y-4 min-w-0">
+      <main className="fw-workspace flex-1 max-w-[1480px] w-full mx-auto px-4 sm:px-7 py-6 sm:py-9 space-y-7 min-w-0">
 
         {/* Executive Situation Brief — 5-10 second summary synthesized from live data */}
-        <SituationBrief currentCase={currentCase} />
+        <SituationBrief
+          currentCase={currentCase}
+          demoMode={useClientDemoActions}
+          onNextStep={() => focusStage(nextInvestigationStep.stage, nextInvestigationStep.anchor)}
+        />
 
-        {/* 01 — Asset Twin & 02 — Signals */}
-        <StageSection
-          id="machine-context" index={1} title="Asset Twin" status={stageStatus('asset')}
+        <div className="fw-workflow-overview">
+          <div className="fw-workflow-intro">
+            <h2>Follow the investigation</h2>
+            <p>Start with what changed, test the likely cause, choose a response, and see what happened.</p>
+          </div>
+          <nav aria-label="Investigation workflow" className="fw-workflow-grid grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+            {([
+              { number: '01', label: 'Observe', detail: 'What changed?', stage: 'asset', anchor: 'machine-context' },
+              { number: '02', label: 'Explain', detail: 'Why might it have happened?', stage: 'why', anchor: 'hypotheses' },
+              { number: '03', label: 'Decide', detail: 'What should we do?', stage: 'simulate', anchor: 'simulation' },
+              { number: '04', label: 'Record', detail: 'What happened next?', stage: 'outcome', anchor: 'outcome' },
+            ] as const).map((phase) => (
+              <button key={phase.number} type="button" onClick={() => focusStage(phase.stage, phase.anchor)} className="fw-workflow-step text-left">
+                <span className="fw-workflow-number">{phase.number}</span>
+                <span className="fw-workflow-copy"><strong>{phase.label}</strong><small>{phase.detail}</small></span>
+                <ChevronRight className="w-4 h-4 shrink-0" aria-hidden="true" />
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="fw-phase-heading fw-phase-heading--observe"><span>01 / OBSERVE</span><p>Understand the machine and trace every signal to its source.</p></div>
+            <StageSection
+          id="machine-context" index={1} title="Asset & signals" status={stageStatus('asset')}
+          phase="observe"
+          guide={{ meaning: 'See which part of the machine needs attention and how its signals compare with normal operation.', explore: 'Select a component to focus the evidence, then drag the timeline to inspect changes over time.' }}
           summary={`${currentCase.asset.name} · Health ${currentCase.asset.health_score}%`}
           expanded={expandedStages.asset} onToggle={() => toggleStage('asset')}
         >
@@ -880,6 +1145,7 @@ export default function App() {
             <div className="lg:col-span-5 min-w-0">
               <MachineContextPanel
                 asset={currentCase.asset}
+                signals={currentCase.telemetry_summary}
                 selectedComponentId={selectedComponentId}
                 onSelectComponent={setSelectedComponentId}
               />
@@ -895,16 +1161,25 @@ export default function App() {
         </StageSection>
 
         <StageSection
-          id="telemetry-stage" index={2} title="Signals" status={stageStatus('signals')}
-          summary={topChangedSummary()}
-          expanded={expandedStages.signals} onToggle={() => toggleStage('signals')}
+          id="evidence" index={2} title="Evidence & provenance" status={stageStatus('evidence')}
+          phase="observe"
+          guide={{ meaning: 'These are observed records. Each item shows where the information came from.', explore: 'Filter by source and open an evidence item to inspect its provenance.' }}
+          summary={`${currentCase.evidence?.length || 0} records`}
+          expanded={expandedStages.evidence} onToggle={() => toggleStage('evidence')}
         >
-          <div className="text-xs text-slate-600 font-mono">See Asset Twin panel above for the full telemetry dynamics and scrubber.</div>
+          <EvidenceTimeline
+            evidenceList={currentCase.evidence}
+            selectedEvidenceId={selectedEvidence?.evidence_id || null}
+            onSelectEvidence={setSelectedEvidence}
+            filteredComponentId={selectedComponentId}
+          />
         </StageSection>
 
-        {/* 03 — WHY: Competing Hypotheses, 04 — Critic */}
+        <div className="fw-phase-heading fw-phase-heading--explain"><span>02 / EXPLAIN</span><p>Compare possible causes, then challenge the leading theory.</p></div>
         <StageSection
-          id="hypotheses" index={3} title="WHY — Competing Hypotheses" status={stageStatus('why')}
+          id="hypotheses" index={3} title="Competing explanations" status={stageStatus('why')}
+          phase="explain"
+          guide={{ meaning: 'Possible causes are ranked as interpretations of the evidence, with support and contradictions shown separately.', explore: 'Compare confidence and evidence links, then challenge the leading explanation.' }}
           summary={(() => {
             const lead = [...(currentCase.hypotheses || [])].sort((a, b) => a.likelihood_rank - b.likelihood_rank)[0];
             return lead ? `${lead.title} · ${Math.round(lead.confidence * 100)}%` : 'No hypotheses yet';
@@ -921,7 +1196,9 @@ export default function App() {
         </StageSection>
 
         <StageSection
-          id="critic" index={4} title="Critic — Falsification Challenge" status={stageStatus('critic')}
+          id="critic" index={4} title="Challenge the lead" status={stageStatus('critic')}
+          phase="explain"
+          guide={{ meaning: 'A strong explanation should survive a search for conflicting facts and missing checks.', explore: 'Review contradictions and the proposed physical check before deciding.' }}
           summary={currentCase.critic_finding?.falsification_condition || 'No critique yet'}
           expanded={expandedStages.critic} onToggle={() => toggleStage('critic')}
         >
@@ -929,27 +1206,18 @@ export default function App() {
             criticFinding={currentCase.critic_finding}
             leadingHypothesisTitle={currentCase.hypotheses[0]?.title || 'Bearing Misalignment'}
             onEvidenceClick={handleEvidenceClick}
+            onChallenge={() => handleApprovalDecision('CHALLENGE', 'Challenge the leading hypothesis with the live Critic.')}
+            challengeAvailable={!useClientDemoActions && !auth.isLocalDemoUser}
+            isChallenging={isLiveAnalyzing}
             onChallengeComplete={() => focusStage('simulate', 'simulation')}
           />
         </StageSection>
 
-        {/* 05 — Evidence */}
+        <div className="fw-phase-heading fw-phase-heading--decide"><span>03 / DECIDE</span><p>Compare the trade-offs before a person authorizes the next step.</p></div>
         <StageSection
-          id="evidence" index={5} title="Evidence Stream" status={stageStatus('evidence')}
-          summary={`${currentCase.evidence?.length || 0} records`}
-          expanded={expandedStages.evidence} onToggle={() => toggleStage('evidence')}
-        >
-          <EvidenceTimeline
-            evidenceList={currentCase.evidence}
-            selectedEvidenceId={selectedEvidence?.evidence_id || null}
-            onSelectEvidence={setSelectedEvidence}
-            filteredComponentId={selectedComponentId}
-          />
-        </StageSection>
-
-        {/* 06 — Simulation */}
-        <StageSection
-          id="simulation" index={6} title="Deterministic Simulation" status={stageStatus('simulate')}
+          id="simulation" index={5} title="Compare options" status={stageStatus('simulate')}
+          phase="decide"
+          guide={{ meaning: 'The options show modeled trade-offs in downtime, risk, uncertainty, and cost.', explore: 'Adjust assumptions to see how the comparison changes; this does not approve an action.' }}
           summary={currentCase.simulation_results?.find(r => r.recommended)?.title || currentCase.recommendation?.next_step || 'Not yet run'}
           expanded={expandedStages.simulate} onToggle={() => toggleStage('simulate')}
         >
@@ -962,10 +1230,11 @@ export default function App() {
           />
         </StageSection>
 
-        {/* 07 — Recommendation + Human Approval Gate (the primary human decision point) */}
         <StageSection
-          id="approval" index={7} title="Human Approval Gate" status={stageStatus('approve')}
-          summary={`Decision: ${currentCase.approval?.decision || 'PENDING'}`}
+          id="approval" index={6} title="Human authorization" status={stageStatus('approve')}
+          phase="decide"
+          guide={{ meaning: 'The recommendation is a proposal. A person makes the final decision before the action stage.', explore: 'Review the evidence and expected impact, then authorize or reject the action, request more evidence, or ask the AI to challenge its leading explanation.' }}
+          summary={`Decision: ${approvalDecisionLabel(currentCase.approval?.decision)}`}
           lockedReason="awaiting recommendation"
           expanded={expandedStages.approve} onToggle={() => toggleStage('approve')}
         >
@@ -981,14 +1250,20 @@ export default function App() {
                 approval={currentCase.approval || ({} as any)}
                 onDecision={handleApprovalDecision}
                 onChallengeClick={() => focusStage('critic', 'critic')}
+                readiness={decisionReadiness}
+                externallyBusy={isLiveAnalyzing}
+                demoMode={useClientDemoActions}
+                operatorName={auth.user?.displayName || auth.user?.email}
               />
             </div>
           </div>
         </StageSection>
 
-        {/* 08 — Simulated Action & Outcome (unlocked only after approval) */}
+        <div className="fw-phase-heading fw-phase-heading--record"><span>04 / RECORD</span><p>Follow the dispatched action and review the decision trail.</p></div>
         <StageSection
-          id="outcome" index={8} title="Simulated Action & Outcome" status={stageStatus('outcome')}
+          id="outcome" index={7} title="Action & outcome" status={stageStatus('outcome')}
+          phase="record"
+          guide={{ meaning: useClientDemoActions ? 'This demo connects the approved action with a simulated inspection result.' : 'This connects the approved action with the inspection outcome returned by the server.', explore: 'Review the work steps and compare the before and after values.' }}
           summary={currentCase.outcome ? currentCase.outcome.actual_cause : 'Action not yet executed'}
           lockedReason="awaiting human approval"
           expanded={expandedStages.outcome} onToggle={() => toggleStage('outcome')}
@@ -1000,15 +1275,17 @@ export default function App() {
                 approval={currentCase.approval || ({} as any)}
                 onExecuteAction={handleExecuteAction}
                 isOutcomeRevealed={!!currentCase.outcome}
+                demoMode={useClientDemoActions}
               />
             </div>
             <OutcomePanel outcome={currentCase.outcome} />
           </div>
         </StageSection>
 
-        {/* 09 — Audit Trail (secondary, collapsed by default) */}
         <StageSection
-          id="audit" index={9} title="Audit Trail" status={stageStatus('audit')}
+          id="audit" index={8} title="Audit trail" status={stageStatus('audit')}
+          phase="record"
+          guide={{ meaning: 'The timeline records the sequence of agent and tool events behind this investigation.', explore: 'Filter by agent and expand an event to inspect its details.' }}
           summary={`${currentCase.audit_trail?.length || 0} events`}
           expanded={expandedStages.audit} onToggle={() => toggleStage('audit')}
         >
@@ -1022,10 +1299,10 @@ export default function App() {
       <footer className="border-t border-slate-100 bg-slate-50 py-4 px-4 text-center text-xs font-mono text-slate-500">
         <div className="max-w-[1720px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div>
-            <span>FACTORY WHY · Industrial Diagnostics & Root-Cause Workspace</span>
+            <span>FACTORY WHY · Industrial reliability investigations</span>
           </div>
           <div>
-            <span>Google ADK + Gemini Architecture Reference</span>
+            <span>From signal to accountable action</span>
           </div>
         </div>
       </footer>

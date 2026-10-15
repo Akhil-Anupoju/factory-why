@@ -4,6 +4,9 @@ import App from './App.tsx';
 import './index.css';
 import { AuthProvider } from './auth/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import { applyTheme, readStoredTheme } from './theme';
+
+applyTheme(readStoredTheme());
 
 function ClientErrorCatcher({children}: {children: React.ReactNode}) {
   const [error, setError] = useState<string | null>(null);
