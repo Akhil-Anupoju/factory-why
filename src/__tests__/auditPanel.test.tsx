@@ -26,6 +26,6 @@ describe('AuditPanel', () => {
 
     fireEvent.click(eventButton);
     expect(eventButton).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByText(/Loaded asset context/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Loaded asset context/)).toHaveLength(2);
   });
 });
