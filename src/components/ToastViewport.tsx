@@ -16,10 +16,10 @@ interface ToastViewportProps {
 }
 
 const toastStyles: Record<ToastKind, { icon: React.ReactNode; classes: string }> = {
-  success: { icon: <CheckCircle2 className="h-5 w-5" aria-hidden="true" />, classes: 'border-emerald-200 bg-white text-emerald-950' },
-  error: { icon: <AlertCircle className="h-5 w-5" aria-hidden="true" />, classes: 'border-rose-200 bg-white text-rose-950' },
-  info: { icon: <Info className="h-5 w-5" aria-hidden="true" />, classes: 'border-cyan-200 bg-white text-slate-900' },
-  loading: { icon: <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />, classes: 'border-cyan-200 bg-white text-slate-900' },
+  success: { icon: <CheckCircle2 className="h-5 w-5" aria-hidden="true" />, classes: 'fw-toast--success border-emerald-200 bg-white text-emerald-950' },
+  error: { icon: <AlertCircle className="h-5 w-5" aria-hidden="true" />, classes: 'fw-toast--error border-rose-200 bg-white text-rose-950' },
+  info: { icon: <Info className="h-5 w-5" aria-hidden="true" />, classes: 'fw-toast--info border-cyan-200 bg-white text-slate-900' },
+  loading: { icon: <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />, classes: 'fw-toast--loading border-cyan-200 bg-white text-slate-900' },
 };
 
 const ToastItem: React.FC<ToastMessage & { onDismiss: (id: string) => void }> = ({ id, message, kind, duration, onDismiss }) => {

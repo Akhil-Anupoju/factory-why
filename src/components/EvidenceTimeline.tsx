@@ -35,7 +35,7 @@ export const EvidenceTimeline: React.FC<EvidenceTimelineProps> = ({
       case 'Maintenance work order':
         return <Wrench className="w-4 h-4 text-amber-600" />;
       case 'Service manual':
-        return <FileText className="w-4 h-4 text-blue-600" />;
+        return <FileText className="w-4 h-4 text-cyan-600" />;
       case 'Prior incident':
         return <ShieldAlert className="w-4 h-4 text-purple-600" />;
       case 'Inspection image':
