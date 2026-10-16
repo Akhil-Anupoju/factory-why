@@ -77,11 +77,13 @@ export const AuditPanel: React.FC<AuditPanelProps> = ({ auditTrail }) => {
               className="bg-slate-50/80 border border-slate-200 rounded overflow-hidden w-full min-w-0"
             >
               {/* Event Summary Row */}
-              <div
+              <button
+                type="button"
                 onClick={() => toggleExpand(evt.event_id)}
-                className="p-2.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 cursor-pointer hover:bg-white transition-colors w-full min-w-0"
+                aria-expanded={isExpanded}
+                className="fw-audit-event-row p-2.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 cursor-pointer hover:bg-white transition-colors w-full min-w-0 text-left"
               >
-                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                <span className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
                   <span className="text-slate-500 font-bold w-5 shrink-0 text-right">
                     #{evt.step_number}
                   </span>
@@ -97,9 +99,9 @@ export const AuditPanel: React.FC<AuditPanelProps> = ({ auditTrail }) => {
                   <span className="text-slate-600 truncate hidden md:inline font-sans text-xs">
                     {evt.summary}
                   </span>
-                </div>
+                </span>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <span className="flex items-center gap-2 shrink-0">
                   <span className="text-[10px] text-slate-500 hidden sm:inline">
                     {evt.timestamp}
                   </span>
@@ -111,8 +113,8 @@ export const AuditPanel: React.FC<AuditPanelProps> = ({ auditTrail }) => {
                   ) : (
                     <ChevronRight className="w-4 h-4 text-slate-600 shrink-0" />
                   )}
-                </div>
-              </div>
+                </span>
+              </button>
 
               {/* Expanded JSON Payloads */}
               {isExpanded && (

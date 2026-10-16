@@ -15,6 +15,11 @@ def test_test_incident_fixtures_are_distinct_and_start_fresh():
         "INC-2026-1115",
         "INC-2026-1128",
         "INC-2026-1141",
+        "INC-2026-1201",
+        "INC-2026-1202",
+        "INC-2026-1203",
+        "INC-2026-1204",
+        "INC-2026-1205",
     ]
     for incident in incidents:
         assert incident["approval"]["decision"] == "PENDING"

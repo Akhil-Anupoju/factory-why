@@ -21,6 +21,11 @@ The fresh test set contains:
 | `INC-2026-1115` | Tool changer clamp force fault | CNC-03 | Pending approval |
 | `INC-2026-1128` | Pneumatic fixture pressure drop | CNC-10 | Pending approval |
 | `INC-2026-1141` | Spindle chatter during finish pass | CNC-01 | Pending approval |
+| `INC-2026-1201` | X-axis servo following error | CNC-11 | Pending approval |
+| `INC-2026-1202` | Chip conveyor motor overload | CNC-12 | Pending approval |
+| `INC-2026-1203` | Rotary table indexing accuracy drift | CNC-13 | Pending approval |
+| `INC-2026-1204` | Tool drawbar retention force loss | CNC-14 | Pending approval |
+| `INC-2026-1205` | Coolant concentration and heat-rejection drift | CNC-15 | Pending approval |
 
 `INC-2026-0827` remains the resolved/reference incident and is deliberately not
 written by the test seeder. `INC-2026-1001` copies its complete payload shape,

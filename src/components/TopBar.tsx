@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, BarChart3, ChevronDown, Layers3, LogOut, RotateCcw, Sparkles } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, Layers3, LogOut, RotateCcw, Sparkles } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { IncidentSummary } from '../api/incidentApi';
 import { InvestigationCase } from '../types';
@@ -113,7 +113,14 @@ export const TopBar: React.FC<TopBarProps> = ({
                     onClick={() => selectIncident(incident.incident_id)}
                   >
                     <span>{incident.incident_id}</span>
-                    {incident.incident_id === activeScenarioId && <span aria-hidden="true">✓</span>}
+                    {incident.status === 'APPROVED' ? (
+                      <span className="fw-incident-option-status fw-incident-option-status--approved" aria-label="Approved" title="Approved">
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                        <span>Approved</span>
+                      </span>
+                    ) : (
+                      <span className="fw-incident-option-status fw-incident-option-status--investigate">Needs investigation</span>
+                    )}
                   </button>
                 ))}
               </div>
