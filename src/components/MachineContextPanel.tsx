@@ -107,7 +107,7 @@ export const MachineContextPanel: React.FC<MachineContextPanelProps> = ({
         </div>
 
         <div className="w-full overflow-hidden flex justify-center">
-          <svg viewBox="0 0 380 95" className="w-full max-w-[380px] h-auto">
+          <svg viewBox="0 0 380 95" className="fw-machine-diagram-svg w-full max-w-[380px] h-auto">
           <defs>
             <linearGradient id="motorGrad" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#1e293b" />

@@ -135,7 +135,7 @@ export const EvaluationSuiteModal: React.FC<EvaluationSuiteModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className="bg-white border border-slate-300 rounded-lg max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="fw-modal-panel bg-white border border-slate-300 rounded-lg max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

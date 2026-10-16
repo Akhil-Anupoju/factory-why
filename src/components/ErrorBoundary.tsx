@@ -25,8 +25,8 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-6">
-          <div className="max-w-xl w-full bg-amber-100/90 border border-amber-300 rounded p-6">
+        <div className="fw-error-screen min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-6">
+          <div className="fw-error-card max-w-xl w-full bg-amber-100/90 border border-amber-300 rounded p-6">
             <h2 className="text-lg font-bold mb-2">An unexpected error occurred</h2>
             <p className="text-sm text-amber-950 mb-4">
               The application encountered an unrecoverable rendering error. This prevents a blank screen and preserves diagnostic information.
