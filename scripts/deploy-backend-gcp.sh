@@ -41,7 +41,7 @@ gcloud run deploy "$SERVICE" \
   --timeout=300 \
   --min=0 \
   --max=3 \
-  --set-env-vars="RUNTIME_MODE=PRODUCTION,GCP_PROJECT=${PROJECT_ID},GCP_REGION=${REGION},FIREBASE_PROJECT=${PROJECT_ID},FIRESTORE_DB=(default),BIGQUERY_DATASET=factory_why,BIGQUERY_TABLE=telemetry_raw,GCS_BUCKET=factory-why-hackathon-artifacts,ADK_MODEL_PROVIDER=vertex_ai,ADK_MODEL_NAME=gemini-2.5-flash,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},GOOGLE_GENAI_USE_VERTEXAI=true,ALLOWED_ORIGINS=https://${PROJECT_ID}.web.app\,https://${PROJECT_ID}.firebaseapp.com"
+  --env-vars-file=deploy-env.yaml
 
 SERVICE_URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
 echo "Backend deployed: ${SERVICE_URL}"
