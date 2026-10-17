@@ -212,7 +212,7 @@ export const SimulationPanel: React.FC<SimulationPanelProps> = ({
             >
               <div className="space-y-3 min-w-0">
                 {/* Card Top Title & Status */}
-                <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 min-w-0">
                   <div className="flex items-center gap-1.5 min-w-0">
                     {res.option === 'CONTINUE' && <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />}
                     {res.option === 'INSPECT' && <ShieldCheck className="w-4 h-4 text-cyan-600 shrink-0" />}
@@ -223,15 +223,15 @@ export const SimulationPanel: React.FC<SimulationPanelProps> = ({
                   </div>
 
                   {isRec ? (
-                    <span className="text-[10px] font-mono font-bold text-cyan-700 bg-cyan-50 border border-cyan-500/60 px-2 py-0.5 rounded shrink-0">
+                    <span className="text-[10px] font-mono font-bold text-cyan-700 bg-cyan-50 border border-cyan-500/60 px-2 py-0.5 rounded shrink-0 mt-2 sm:mt-0">
                       RECOMMENDED
                     </span>
                   ) : res.risk_indicator === 'HIGH' ? (
-                    <span className="text-[10px] font-mono font-bold text-rose-600 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded shrink-0">
+                    <span className="text-[10px] font-mono font-bold text-rose-600 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded shrink-0 mt-2 sm:mt-0">
                       HIGH RISK
                     </span>
                   ) : (
-                    <span className="text-[10px] font-mono text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded shrink-0">
+                    <span className="text-[10px] font-mono text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded shrink-0 mt-2 sm:mt-0">
                       ALTERNATIVE
                     </span>
                   )}

@@ -73,7 +73,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <header className="fw-topbar sticky top-0 z-30">
-      <div className="fw-topbar-inner max-w-[1480px] mx-auto w-full min-w-0 px-4 sm:px-7 py-3 flex flex-nowrap items-center gap-2 sm:gap-4">
+      <div className="fw-topbar-inner max-w-[1480px] mx-auto w-full min-w-0 px-4 sm:px-7 py-3 flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-4">
         <div className="fw-brand flex items-center gap-3 min-w-0 shrink-0 mr-auto">
           <img src="/assets/factorywhy-logo.png" alt="Factory WHY" className="w-9 h-9 object-contain shrink-0" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
           <div className="min-w-0">
@@ -83,10 +83,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
 
         <div className="fw-case-switcher flex min-w-0 shrink items-center gap-2">
-          <div className="fw-incident-picker relative min-w-0" ref={incidentPickerRef}>
+          <div className="fw-incident-picker relative min-w-0 sm:flex-1" ref={incidentPickerRef}>
             <button
               type="button"
-              className="fw-incident-picker-trigger flex min-w-0 items-center gap-2"
+              className="fw-incident-picker-trigger flex w-full min-w-0 items-center gap-2 px-2 py-1 sm:px-0 sm:py-0"
               aria-label="Choose incident"
               aria-haspopup="listbox"
               aria-expanded={incidentMenuOpen}

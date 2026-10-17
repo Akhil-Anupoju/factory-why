@@ -150,7 +150,7 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
 
         {/* Zone 3: Strongest Discriminating Check */}
         <div className="fw-critic-card border border-slate-200 rounded p-3 md:col-span-2 min-w-0">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 text-emerald-600 font-mono font-semibold text-[11px] uppercase mb-1">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
@@ -161,8 +161,8 @@ export const CriticSection: React.FC<CriticSectionProps> = ({
               </p>
             </div>
 
-            <div className="text-left sm:text-right shrink-0">
-              <span className="text-[10px] font-mono text-slate-600 uppercase">Suggested check</span>
+            <div className="w-full sm:w-auto sm:text-right shrink-0 sm:mt-0 mt-3">
+              <span className="text-[10px] font-mono text-slate-600 uppercase block sm:inline">Suggested check</span>
               <div className="text-xs font-bold font-mono text-cyan-700 bg-cyan-50/80 border border-cyan-200/60 px-2 py-0.5 rounded mt-0.5">
                 {criticFinding.recommendation_action}
               </div>
